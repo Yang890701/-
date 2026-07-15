@@ -1,0 +1,10 @@
+target-version = "py312"
+line-length = 110
+extend-exclude = ["alembic/versions", ".venv", "var"]
+
+[lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = ["B008", "E501"]  # B008: FastAPI Depends() 慣例; E501: 行長交給 formatter，不硬性擋(長中文字串無法斷)
+
+[lint.per-file-ignores]
+"tests/*" = ["E402"]

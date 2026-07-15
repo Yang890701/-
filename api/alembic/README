@@ -1,0 +1,3 @@
+Alembic migration environment for the API.
+
+T1 creates the migration scaffold only. Do not run migrations until schema work starts in later tasks.
