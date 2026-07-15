@@ -83,6 +83,12 @@ button:disabled {
   border-color: #e5e2dc;
 }
 
+.topnav-link-active {
+  background: #eef1f4;
+  border-color: #dfe3e7;
+  color: #26313b;
+}
+
 .user-actions {
   align-items: center;
   display: flex;
@@ -283,6 +289,167 @@ tbody tr:hover {
   margin: 0 0 8px;
 }
 
+.portal-page {
+  max-width: 1180px;
+}
+
+.portal-heading {
+  margin-bottom: 20px;
+}
+
+.portal-kicker {
+  color: #4a5a6a;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.portal-heading h1 {
+  color: #26313b;
+  font-size: 28px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.portal-heading p {
+  color: #6a7075;
+  margin: 8px 0 0;
+}
+
+.portal-layout {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+
+.portal-sections {
+  display: grid;
+  gap: 16px;
+}
+
+.portal-aside {
+  position: sticky;
+  top: 74px;
+}
+
+.portal-card {
+  padding: 20px;
+}
+
+.portal-card-title {
+  color: #26313b;
+  font-size: 18px;
+  margin: 0 0 14px;
+}
+
+.portal-list,
+.notice-list {
+  border-top: 1px solid #e9e6e0;
+}
+
+.portal-row {
+  align-items: center;
+  border-bottom: 1px solid #e9e6e0;
+  color: inherit;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin: 0 -10px;
+  min-height: 62px;
+  padding: 12px 10px;
+  text-decoration: none;
+}
+
+.portal-row:last-child {
+  border-bottom: 0;
+}
+
+.portal-row-link:hover {
+  background: #faf9f6;
+}
+
+.portal-row-link:focus-visible {
+  outline: 2px solid rgba(74, 90, 106, 0.22);
+  outline-offset: -2px;
+}
+
+.portal-row-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.portal-row-label {
+  color: #26313b;
+  font-weight: 700;
+}
+
+.portal-row-description {
+  color: #6a7075;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-row-action {
+  color: #4a5a6a;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.portal-tag,
+.notice-pin {
+  background: #f1f0ed;
+  border: 1px solid #e5e2dc;
+  border-radius: 4px;
+  color: #6a7075;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.notice-item {
+  border-bottom: 1px solid #e9e6e0;
+  padding: 14px 0;
+}
+
+.notice-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.notice-title-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.notice-title-row h3 {
+  color: #26313b;
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.notice-item p {
+  color: #3f464d;
+  margin: 8px 0 0;
+}
+
+.notice-item time {
+  color: #8a8f94;
+  display: block;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
 .pagination {
   align-items: center;
   border-top: 1px solid #e5e2dc;
@@ -306,6 +473,23 @@ tbody tr:hover {
   color: #9a3d25;
   margin-top: 12px;
   padding: 10px 12px;
+}
+
+.message {
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+.message-success {
+  background: #eef5f1;
+  border: 1px solid #cfe2d6;
+  color: #2e6a45;
+}
+
+.message-warning {
+  background: #fff9ea;
+  border: 1px solid #e3cf94;
+  color: #765a14;
 }
 
 .login-page {
@@ -347,6 +531,158 @@ tbody tr:hover {
   padding: 40px;
 }
 
+.layout {
+  align-items: flex-start;
+  display: flex;
+  gap: 18px;
+}
+
+.side-tabs {
+  background: #fff;
+  border: 1px solid #e5e2dc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 10px;
+  position: sticky;
+  top: 18px;
+  width: 190px;
+}
+
+.main-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.side-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #4a5a6a;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 12px;
+  text-align: left;
+}
+
+.side-tab:hover {
+  background: #faf9f6;
+}
+
+.side-tab-active {
+  background: #eef1f4;
+  border-color: #dfe3e7;
+  color: #26313b;
+}
+
+.side-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.side-group + .side-group {
+  margin-top: 12px;
+}
+
+.side-group-title {
+  color: #8a8f94;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 4px 12px;
+}
+
+.page-size {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.page-size .control {
+  min-height: 32px;
+  padding: 4px 8px;
+  width: auto;
+}
+
+.master-header {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 22px;
+}
+
+.master-header .section-title,
+.master-header p {
+  margin-bottom: 0;
+}
+
+.master-header-actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 14px;
+}
+
+.master-form-card {
+  margin-top: 18px;
+  padding: 18px;
+}
+
+.master-form {
+  display: grid;
+  gap: 16px;
+}
+
+.master-form-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+}
+
+.master-form-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.required-mark {
+  color: #b04a2f;
+}
+
+.master-form-actions,
+.table-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.button-small {
+  font-size: 12px;
+  min-height: 30px;
+  padding: 4px 9px;
+}
+
+.status-pill {
+  background: #eef5f1;
+  border: 1px solid #cfe2d6;
+  border-radius: 4px;
+  color: #2e6a45;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 7px;
+  white-space: nowrap;
+}
+
+.status-pill-inactive {
+  background: #f4f1ed;
+  border-color: #ded7ce;
+  color: #7a6551;
+}
+
 @media (max-width: 760px) {
   .topbar,
   .toolbar,
@@ -367,8 +703,39 @@ tbody tr:hover {
     gap: 8px;
   }
 
+  .topnav {
+    flex-wrap: wrap;
+  }
+
   .page {
     padding: 18px;
+  }
+
+  .portal-heading h1 {
+    font-size: 24px;
+  }
+
+  .portal-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .portal-aside {
+    position: static;
+  }
+
+  .portal-card {
+    padding: 18px;
+  }
+
+  .layout {
+    flex-direction: column;
+  }
+
+  .side-tabs {
+    flex-direction: row;
+    flex-wrap: wrap;
+    position: static;
+    width: 100%;
   }
 
   .toolbar {
@@ -377,6 +744,13 @@ tbody tr:hover {
 
   .toolbar-main,
   .user-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .master-header,
+  .master-header-actions,
+  .master-form-actions {
     align-items: stretch;
     flex-direction: column;
   }

@@ -1,0 +1,43 @@
+You are implementing in this git repo (FastAPI backend api/, Next.js frontend web/). First read .devline/02-constitution.md, .devline/02-architecture.md, .devline/03-tasks.md, and api/app/routers/master.py (follow its patterns for auth/audit/error handling). Execute ONLY task T16 (房↔電表關聯 + 度數/電價上傳). Codex必測③ = exclusion constraint 防區間重疊.
+
+DB CONTEXT (models in api/app/db/models/__init__.py, all already exist from T3):
+- room_meter_assignment(room_id, meter_id, effective_from_ym CHAR(6), effective_to_ym CHAR(6) nullable, initial_reading, final_reading, meter_category, meter_category_id). Natural key partial-unique (room_id, meter_category, effective_from_ym). Verify whether a GiST EXCLUDE constraint preventing overlapping (room_id, meter_category) effective ranges exists (check via a quick psql or migration history); if NOT present, add it in a NEW alembic migration (btree_gist is installed) so overlapping active ranges for the same room+category are rejected at DB level.
+- meter_reading(assignment_id, billing_ym, reading_kind, reading, attachment_id?). Partial-unique (assignment_id, billing_ym, reading_kind).
+- meter_event(assignment_id, event_type, event_ym, old_reading, new_reading) — for 換表/停用/初始.
+- reading_exception(assignment_id, billing_ym, reason, status default 'open') — queue for missing/abnormal readings.
+- avg_price(meter_id, billing_ym, price NUMERIC(10,4), attachment_id?). Partial-unique (meter_id, billing_ym).
+- Auth via get_current_user; write requires role admin|manager. Attachment model exists (api/app/routers/attachments.py has presign). For THIS task attachment_id is OPTIONAL (nullable) — do NOT require file upload wiring; accept an optional attachment_id.
+
+BACKEND (add to a new router api/app/routers/meter.py or extend master.py; register in main.py):
+1. Assignments:
+   - POST /api/meter-assignments  {room_id, meter_id, meter_category, effective_from_ym, initial_reading?} -> create. Validate room & meter exist (400). Reject overlapping active range for same (room_id, meter_category) -> 409 (rely on EXCLUDE constraint; catch and return clean 409). Write audit.
+   - GET  /api/meter-assignments?room_id=..  list.
+   - POST /api/meter-assignments/{id}/change-meter  {new_meter_id, event_ym, final_reading, new_initial_reading} -> 換表: close current assignment (set effective_to_ym = prior period, final_reading), create a new adjacent assignment starting event_ym with new_initial_reading, write a meter_event(event_type='換表'). Adjacent ranges must NOT overlap (rely on constraint).
+2. Meter readings:
+   - POST /api/meter-readings  {assignment_id, billing_ym, reading_kind, reading, attachment_id?}. Rule 「須先傳前期」: for reading_kind='例行', reject (409 with clear msg) if there is NO reading for the immediately-prior billing_ym on the same assignment AND the assignment's initial_reading is null / assignment did not start this period. The initial period (billing_ym == assignment.effective_from_ym or reading_kind='初始') is allowed without a prior. Write audit.
+   - If reading is missing/None or flagged abnormal (e.g. negative usage vs prior), instead of inserting a reading, insert a reading_exception(reason) row and return it (do not hard-fail).
+   - GET /api/meter-readings?assignment_id=..
+   - GET /api/reading-exceptions?status=open  list the queue.
+3. Avg prices:
+   - POST /api/avg-prices {meter_id, billing_ym, price, attachment_id?} -> validate meter exists; upsert-guard duplicate (meter_id, billing_ym) -> 409; audit.
+   - GET /api/avg-prices?meter_id=..
+4. 景平 401-404 合併電表: These are meters shared by multiple rooms. Support representing them: allow multiple room_meter_assignments to point to the same meter_id with meter_category indicating merged (景平合併). Provide/allow importing the 8 rows currently in import_row_error marked deferred-to-T16 by making the reading endpoint accept them (they were blocked only due to merged category). Do not fully compute merged billing here (that is T17) — just make the data representable and readings insertable. Note this in your report.
+
+TESTS (api/tests/test_meter.py, follow test_master.py transactional-rollback pattern EXACTLY so it does not pollute real data; must pass with the full suite):
+- overlapping assignment for same room+category -> 409 (必測③ exclusion negative);
+- 換表 creates adjacent non-overlapping assignment + meter_event;
+- 例行 reading without prior period -> 409 (須先傳前期);
+- initial-period reading allowed without prior;
+- missing/abnormal reading -> creates reading_exception (not a hard failure);
+- avg_price duplicate (meter_id,billing_ym) -> 409;
+- each successful mutation writes AuditLog.
+
+FRONTEND (web/): make the two portal links work.
+- web/app/upload/reading/page.tsx (房號度數上傳): form to pick assignment (or room→meter), billing_ym, reading_kind, reading value, optional note; submit to /api/meter-readings; show 須先傳前期 / exception messages clearly; list recent readings.
+- web/app/upload/price/page.tsx (平均電價上傳): form meter + billing_ym + price; submit /api/avg-prices.
+- Reuse existing card/button/control/table styles; match /master pages look. Update web/app/portal-data.ts: 房號度數上傳 -> /upload/reading, 平均電價上傳 -> /upload/price, status available.
+- attachment upload can be a simple optional file note for now (no bucket wiring required); keep TS strict.
+
+CONSTRAINTS: respect frozen constitution/architecture; do not change existing endpoints' behavior; TypeScript strict (tsc passes); Python clean.
+
+VERIFY before reporting: run `python -m unittest discover -s tests` (from api/, venv python, DATABASE_URL + JWT env set) and `npm.cmd run build` (from web/). Report: files changed + whether the EXCLUDE constraint already existed or was added (migration id) + test results + build result.

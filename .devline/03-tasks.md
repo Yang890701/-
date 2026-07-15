@@ -33,14 +33,22 @@
 | T13 | 篩選器+匯出(依column_meta動態生成篩選器;匯出當前條件xlsx) | 案場+帳單年月篩選→列數對；匯出xlsx開啟列數=畫面、中文欄名 | — | codex | **done** | evidence/T13.md |
 | T14 | 審計檢視頁 | 顯示審計列,依type/range過濾 | — | sonnet | **done** | evidence/T14.md |
 
+## Phase M2 — 介面增修（站8 新需求，未觸憲法）
+| id | 目標 | 驗收 | 邊界 | 模型 | 狀態 | 證據 |
+|---|---|---|---|---|---|---|
+| A | 左側頁簽分組：10 表分「主檔/帳務/房客/其他」四組加組標題 | 左側出現四組標題、各表正確歸類、點擊切表正常、build 綠 | 純前端，不動 API/資料 | sonnet | **done** | evidence/A.md |
+| B | 入口首頁重建（清單列表版）：首頁以清單呈現連結(主檔/電費/後台分區)+公告，非按鈕格 | 首頁 build 綠、列出連結與公告、風格與現有表格一致、非按鈕格 | 不照原站按鈕排版 | codex | **done** | evidence/B.md |
+
 ## Phase G（Go-live 必備）— 主檔與電費
 | id | 目標 | 驗收 | 邊界 | 模型 | 狀態 | 證據 |
 |---|---|---|---|---|---|---|
-| T15 | 主檔CRUD(site/meter/room):表級+欄位級寫入權限,FK校驗,partial unique,軟刪歷史可查,審計 | 新增房號現於檢視；停用預設不顯示但歷史可查；建不存在案場的房號擋下；同自然鍵重複擋下 | — | codex | todo | evidence/T15.md |
-| T16 | 房↔電表關聯:room_meter_assignment+meter_event(換表)+上傳度數/電價(接attachment)+reading_kind+reading_exception+「須先傳前期」〔Codex必測③〕 | **exclusion constraint防區間重疊(負向)**；換表接續正常；缺前期擋下；缺值進exception佇列 | — | codex | todo | evidence/T16.md |
-| T17 | 電費引擎(async job):billing_run狀態機+idempotency_key+(billing_ym,scope)互斥鎖+input_snapshot+三模式(一般/景平合併/總電費拆帳)+四捨五入整數元+detail/charge_line〔Codex必測②〕 | golden_case三模式各≥3筆通過；同run重觸發被鎖擋(冪等,**負向**)；≥3既有月份全量重算 總筆數/總電費/每案場小計對帳、單筆≤1元 | 電費為程式碼實作,非元數據 | opus | todo | evidence/T17.md |
-| T18 | 電費發布→應收:publish(draft→calculated→approved→published→reversed)落rent_confirm(唯一鍵room_id+billing_ym+charge_type+run_version)+沖銷反向帳+publish後不可變〔Codex必測②〕 | publish產生rent_confirm；重複publish擋(**負向**)；reversed產反向帳不刪原 | — | codex | todo | evidence/T18.md |
-| T19 | 繳租確認頁+狀態機UI | 對某房某期生成明細,金額=房租+電費+固定費+例外款；狀態轉移寫審計 | — | codex | todo | evidence/T19.md |
+| T15 | 主檔CRUD(site/meter/room):表級+欄位級寫入權限,FK校驗,partial unique,軟刪歷史可查,審計 | 新增房號現於檢視；停用預設不顯示但歷史可查；建不存在案場的房號擋下；同自然鍵重複擋下 | — | codex | **done** | evidence/T15.md |
+| T16 | 房↔電表關聯:room_meter_assignment+meter_event(換表)+上傳度數/電價(接attachment)+reading_kind+reading_exception+「須先傳前期」〔Codex必測③〕 | **exclusion constraint防區間重疊(負向)**；換表接續正常；缺前期擋下；缺值進exception佇列 | — | codex | **done** | evidence/T16.md |
+| T17 | 電費引擎(async job):billing_run狀態機+idempotency_key+(billing_ym,scope)互斥鎖+input_snapshot+三模式(一般/景平合併/總電費拆帳)+四捨五入整數元+detail/charge_line〔Codex必測②〕 | golden_case三模式各≥3筆通過；同run重觸發被鎖擋(冪等,**負向**)；≥3既有月份全量重算 總筆數/總電費/每案場小計對帳、單筆≤1元 | 電費為程式碼實作,非元數據 | opus | **done*** | evidence/T17.md |
+<!-- *T17: 引擎5模式+鎖/冪等+15golden全過; 歷史對帳因雙月抄表+舊資料髒值無法精準重現→使用者定「往後權威清算」策略, 歷史對帳非阻擋項 -->
+
+| T18 | 電費發布→應收:publish(draft→calculated→approved→published→reversed)落rent_confirm(唯一鍵room_id+billing_ym+charge_type+run_version)+沖銷反向帳+publish後不可變〔Codex必測②〕 | publish產生rent_confirm；重複publish擋(**負向**)；reversed產反向帳不刪原 | — | codex | **done** | evidence/T18.md |
+| T19 | 繳租確認頁+狀態機UI | 對某房某期生成明細,金額=房租+電費+固定費+例外款；狀態轉移寫審計 | — | codex | **done** | evidence/T19.md |
 
 ## Phase G — 切換
 | id | 目標 | 驗收 | 邊界 | 模型 | 狀態 | 證據 |

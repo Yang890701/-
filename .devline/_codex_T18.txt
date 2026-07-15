@@ -1,0 +1,36 @@
+You are implementing in this git repo (FastAPI backend api/). First read .devline/02-architecture.md (API 契約 電費/繳租 + v3追加 billing run 冪等與發布邊界), api/app/services/billing.py, api/app/routers/billing.py, and api/app/db/models/__init__.py (RentConfirm, BillingRun, BillingRunDetail, TenantContract, RoomFixedFee, ExceptionCharge). Execute ONLY task T18 (電費發布→應收). Codex必測② = 重複 publish 擋 + publish 後不可變.
+
+STRATEGY NOTE (user decision): the system is authoritative GOING FORWARD; publish creates NEW rent_confirm rows with a fresh run_version — we do NOT try to overwrite/reproduce imported historical rent_confirm rows.
+
+STATE MACHINE on billing_run.status: draft → calculated → approved → published → reversed (T17 already reaches 'calculated').
+
+ENDPOINTS (extend api/app/routers/billing.py):
+- POST /api/billing/runs/{id}/approve   : calculated → approved. 403 unless admin|manager. Wrong-state → 409.
+- POST /api/billing/runs/{id}/publish    : approved → published. Idempotent + immutable:
+    * If already published → 409 (不可重複 publish / publish 後不可變). Codex必測②.
+    * For each room in the run, assemble ONE rent_confirm row:
+        - rent_amount = current active tenant_contract.rent for that room (latest non-deleted contract whose lease covers the period; if none, 0/null but still create the row with electricity).
+        - electricity_amount = billing_run_detail.subtotal (電費) for that room in this run.
+        - fixed_fee_amount = Σ room_fixed_fee.amount for the room (active).
+        - exception_amount = Σ exception_charge.amount for room + billing_ym (active).
+        - total_amount = rent + electricity + fixed_fee + exception (treat null components as 0).
+        - charge_type = '月結' (or a sensible constant), run_version = billing_run.version, status = '已確認' (published), billing_ym = run.billing_ym, store a breakdown in amounts JSONB.
+    * Unique key (room_id, billing_ym, charge_type, run_version) — rely on the existing partial-unique index; catch IntegrityError → 409.
+    * Set billing_run.status = 'published'. Write audit.
+- POST /api/billing/runs/{id}/reverse    : published → reversed. Produce REVERSING rent_confirm rows:
+    * Do NOT delete the original published rent_confirm rows. Create new rows with NEGATED amounts (a new run_version = original + a reversal marker, or charge_type='沖銷'/status='作廢'), so the net becomes zero. Set billing_run.status='reversed'. Write audit.
+- GET /api/billing/runs/{id} already returns status; ensure summary reflects published/reversed.
+
+AUTH: approve/publish/reverse require admin|manager.
+
+TESTS (api/tests/test_publish.py, transactional-rollback pattern like test_billing.py; must pass with full suite):
+- calculated→approve→publish creates rent_confirm rows with correct component sums (build a small room+contract+fixed_fee+exception+billing_run scenario, assert amounts).
+- duplicate publish on an already-published run → 409 (必測②, negative).
+- publish on a non-approved run → 409.
+- reverse creates negated rent_confirm rows and does NOT delete the originals; run status → reversed.
+- non-privileged role (staff) publish → 403.
+- each approve/publish/reverse writes an AuditLog.
+
+CONSTRAINTS: respect frozen constitution/architecture; do not touch the T17 calculation logic; do not touch frontend (T19); keep Python clean.
+
+VERIFY before reporting: run `python -m unittest discover -s tests` (venv python, DATABASE_URL+JWT env). Report: files changed + test results.

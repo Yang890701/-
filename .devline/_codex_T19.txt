@@ -1,0 +1,22 @@
+You are implementing in this git repo (Next.js 15 App Router frontend web/, FastAPI backend api/ already has the billing endpoints). First read web/app/data/page.tsx and web/app/master/_components/master-page.tsx (follow their aesthetic/patterns), web/lib/api.ts, web/app/portal-data.ts, web/app/providers.tsx, and api/app/routers/billing.py (endpoints available). Execute ONLY task T19 (繳租確認頁 + 狀態機 UI). FRONTEND ONLY — do not change backend.
+
+BACKEND ENDPOINTS available (use these; do not modify them):
+- POST /api/billing/runs  {billing_ym, scope}  -> {run_id, status:'calculated', summary}
+- GET  /api/billing/runs/{id}                   -> {status, summary}
+- GET  /api/billing/runs/{id}/details           -> paginated per-room lines (電費)
+- POST /api/billing/runs/{id}/approve  -> status approved
+- POST /api/billing/runs/{id}/publish  -> status published, writes rent_confirm
+- POST /api/billing/runs/{id}/reverse  -> status reversed
+(scope shapes: {"type":"all"} | {"site_id":N} | {"room_id":N})
+
+BUILD a page web/app/billing/page.tsx (電費作業 / 繳租確認):
+1. A form: 帳單年月 (billing_ym, YYYYMM input), 範圍 selector (全部 / 指定案場 site_id / 指定房號 room_id), and a 「建立試算」button -> POST /api/billing/runs. Show the returned run_id + status + summary (total_rooms / calculated / skipped / total_amount / by_site subtotals) in a clean card.
+2. A STATE-MACHINE action bar reflecting billing_run.status: draft/calculated → 「核准」(approve) → approved → 「發布」(publish) → published → 「沖銷」(reverse) → reversed. Disable buttons not valid for the current status. After each action call the endpoint and refresh status. Show the current status clearly (a labelled badge). Show error messages from 409/403 clearly (e.g. 重複發布、狀態不符、權限不足).
+3. A details table: GET /api/billing/runs/{id}/details -> list per-room lines (房號 / 電費 電費金額 / 狀態 / 原因 if skipped). Reuse the existing table styles.
+4. After publish, show a short note that 繳租確認明細 has been generated (rent_confirm) for the run's period.
+5. Auth-gated like other pages. Reuse apiJson/apiFetch. Match the clean aesthetic (card/button/control/table classes; primary #4a5a6a). Add minimal new CSS only if needed (badge for status). No button grids, no gradients.
+6. Update web/app/portal-data.ts: 繳租確認管理 -> href /billing, status available. Also update 例外費用管理 to available ONLY IF it already has a page (it does not) — otherwise leave 例外費用管理 as 開發中. Add a nav or portal entry so /billing is reachable.
+
+CONSTRAINTS: frontend only; TypeScript strict (tsc/build passes); do not touch backend or other pages' behavior.
+
+VERIFY before reporting: `npm.cmd run build` from web/ must pass, including /billing. Report: files changed + build result.

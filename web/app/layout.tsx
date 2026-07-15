@@ -6,6 +6,7 @@ import { AuthGuard, AuthProvider } from "./providers";
 export const metadata: Metadata = {
   title: "好室資料管理",
   description: "好室資料管理前台",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

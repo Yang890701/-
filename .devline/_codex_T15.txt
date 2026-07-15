@@ -1,0 +1,41 @@
+You are implementing in this git repo (FastAPI backend in api/, Next.js 15 App Router frontend in web/). First read .devline/02-constitution.md, .devline/02-architecture.md, and .devline/03-tasks.md. Execute ONLY task T15 (主檔 CRUD for site / meter / room).
+
+CONTEXT you must respect:
+- DB models are in api/app/db/models/__init__.py. Tables site, meter, room already exist with soft-delete (deleted_at) and partial-unique natural keys (site.site_code; meter.electricity_code; room.room_code and (site_id, room_code), all WHERE deleted_at IS NULL).
+- Auth: api/app/auth/tokens.py get_current_user gives AppUser (has .role). Roles: admin, manager, accounting, staff (+ is_readonly).
+- Metadata: column_meta already has write_roles seeded (WRITE_ROLES = admin, manager). Reuse it for field-level write authorization.
+- Existing query endpoint api/app/routers/data.py already filters deleted_at IS NULL and writes AuditLog on query/export. Audit model = AuditLog(actor, action, table_code, filters, row_count, ts).
+- DB is running at postgresql+psycopg://postgres@localhost:5432/haoshi_dev (trust). Backend .env is in api/. Tests use unittest + FastAPI TestClient (see api/tests/); they build their own test DB/session — follow the existing test patterns exactly (look at api/tests/test_data.py and test_authz.py).
+
+BACKEND (api/app/routers/master.py, new router, register in api/app/main.py):
+Endpoints for the three master tables site, meter, room:
+- POST   /api/master/{t}            create
+- PUT    /api/master/{t}/{id}       update
+- DELETE /api/master/{t}/{id}       soft-delete (set deleted_at = now); "停用", NOT physical delete
+- GET    /api/master/{t}            list, with optional query param include_inactive=true to also return soft-deleted rows (history). Default excludes deleted.
+Rules:
+- {t} must be one of site|meter|room only; else 400.
+- Authorization: create/update/delete require role in {admin, manager}; else 403. (Table-level write gate by role — do NOT add new table_meta columns / migrations.)
+- FK validation: room.site_id must reference an existing non-deleted site (else 400); room.meter_id if provided must reference an existing non-deleted meter (else 400).
+- Natural-key uniqueness: rely on the DB partial-unique indexes; catch IntegrityError and return 409 with a clear message (e.g. "自然鍵重複"). Check for site_code / electricity_code / (site_id, room_code) duplicates among non-deleted rows.
+- Every create/update/delete writes an AuditLog row (action like "master_create"/"master_update"/"master_delete", table_code={t}).
+- Use pydantic request models per table with only the writable business columns (site: site_code,name,address,management_unit; meter: electricity_code,name,management_type,note; room: site_id,room_code,room_name,meter_id,management_type,management_contact,billing_mode). Do not allow client to set id/created_at/deleted_at.
+- Soft-deleted rows must still be retrievable via include_inactive=true (history) and remain in normal /api/data query? No — normal query keeps hiding them; history is via include_inactive on the master list.
+
+TESTS (api/tests/test_master.py, follow existing test style, must pass with `python -m unittest discover -s tests`):
+- create room under existing site appears in list;
+- create room referencing non-existent site -> 400;
+- duplicate natural key (same site_id+room_code) -> 409;
+- soft-delete a room -> not in default list but present when include_inactive=true;
+- non-privileged role (staff) create -> 403;
+- each successful mutation writes an AuditLog row.
+
+FRONTEND (web/app/master/site, /master/meter, /master/room pages):
+- Create the three pages the portal homepage links to (web/app/master/site/page.tsx etc.). Match existing aesthetic (reuse .card/.button/.control/table styles from globals.css; same clean list look as /data).
+- Each page: a table listing current rows (call GET /api/master/{t}), a "新增" button opening an inline form/modal, per-row "編輯" and "停用" actions, and a "顯示已停用" toggle (include_inactive). Show clear error messages from 400/409/403.
+- Update web/app/portal-data.ts to mark 案場管理/電號管理/房號管理 as available (href /master/site,/master/meter,/master/room) instead of 開發中. Leave 例外費用管理/繳租確認管理 as 開發中 (later tasks).
+- Use the existing apiJson/apiFetch helpers in web/lib/api.ts.
+
+CONSTRAINTS: respect the frozen constitution/architecture. Do NOT change existing endpoints' behavior. Keep TypeScript strict (tsc passes) and Python clean (ruff passes).
+
+VERIFY before reporting: run `python -m unittest discover -s tests` (from api/, with the venv python at api/.venv/Scripts/python.exe and DATABASE_URL set) AND `npm.cmd run build` (from web/). Report: files changed + test results + build result.

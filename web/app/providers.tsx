@@ -24,6 +24,13 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const TOP_NAV_ITEMS = [
+  { href: "/", label: "首頁" },
+  { href: "/billing", label: "電費作業" },
+  { href: "/data", label: "資料檢視" },
+  { href: "/audit", label: "稽核" },
+] as const;
+
 export function useAuth() {
   const value = useContext(AuthContext);
   if (!value) {
@@ -156,13 +163,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           <Link className="brand" href="/">
             好室資料入口
           </Link>
-          {user?.role === "admin" ? (
-            <nav className="topnav" aria-label="管理功能">
-              <Link className="topnav-link" href="/audit">
-                稽核紀錄
-              </Link>
-            </nav>
-          ) : null}
+          <nav className="topnav" aria-label="主選單">
+            {TOP_NAV_ITEMS.map((item) => {
+              const isActive =
+                item.href === "/" ? pathname === item.href : pathname.startsWith(item.href);
+              return (
+                <Link
+                  className={`topnav-link${isActive ? " topnav-link-active" : ""}`}
+                  href={item.href}
+                  key={item.href}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
         <div className="user-actions">
           <span className="username">{user?.username ?? "使用者"}</span>

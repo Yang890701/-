@@ -1,0 +1,20 @@
+You are implementing in this git repo (Next.js 15 App Router frontend in web/, FastAPI backend in api/). First read .devline/02-constitution.md, .devline/02-architecture.md, and .devline/03-tasks.md. Execute ONLY task B (入口首頁重建 / portal homepage, list style).
+
+GOAL: Rebuild the portal landing page as a clean LIST (NOT a button grid, NOT like the original site's buttons), matching the existing aesthetic: background #f6f4f0, white cards, thin borders #e5e2dc, single low-chroma accent #4a5a6a, Noto Sans TC, very soft shadow. Reuse existing CSS classes/patterns in web/app/globals.css; add new classes only as needed. No purple/blue gradients, no glow, no emoji-as-icons.
+
+REQUIREMENTS:
+1. Routing: Make `/` the portal homepage (landing after login). MOVE the current data-explorer page from web/app/page.tsx to web/app/data/page.tsx WITHOUT changing its behavior (keep the left grouped tabs, filters, pagination, export exactly as-is). Add top navigation links reusing existing `.topnav`/`.topnav-link` styles: 首頁(/), 資料檢視(/data), 稽核(/audit). The topbar/nav currently lives in the layout/providers — integrate nav there so all pages show it.
+2. Homepage = clean list sections. Each section is a card (`.card`) with a heading and rows; each row shows a Chinese label + one-line description as a LIST ROW (not a big clickable button tile). Sections and links (use exactly these; links point to the NEW system or show a grey non-clickable "開發中" tag — DO NOT link back to old SharePoint/n8n URLs):
+   - 主檔管理: 案場管理→/master/site(開發中), 電號管理→/master/meter(開發中), 房號管理→/master/room(開發中), 例外費用管理→(開發中), 繳租確認管理→(開發中)
+   - 電費作業: 房號度數上傳→(開發中), 平均電價上傳→(開發中)
+   - 資料查詢: 通用資料檢視→/data(可點), 稽核紀錄→/audit(可點)
+   Row descriptions (from original site): 案場管理=案場建立/更新/停用; 電號管理=電號建立/更新/停用; 房號管理=房號建立/更新/停用; 例外費用管理=固定費用與例外款項; 繳租確認管理=收租後匯款資訊紀錄; 房號度數上傳=各期房號度數上傳; 平均電價上傳=各期台電帳單平均電價; 通用資料檢視=選任一張表→篩選→匯出Excel; 稽核紀錄=系統操作紀錄查詢.
+3. 公告區: one card listing notices (title + content + date). Use this static seed:
+   - {title:"歡迎使用好室開發內部入口網站", pinned:true, date:"2025-12-16"}
+   - {title:"例外費用管理功能上線囉！", content:"請使用『例外費用管理』進行上傳", date:"2025-12-17"}
+   Pinned notices first, show a small 置頂 tag.
+4. Data source: put portal links + notices as a static typed config file web/app/portal-data.ts (typed, no `any`). Render homepage from it. DO NOT create DB tables or migrations for this task.
+5. Keep the existing auth/login gate for `/` and `/data` (same behavior as before). Do not break login redirect.
+6. CONSTRAINTS: touch ONLY web/ (frontend). Do NOT modify backend (api/), DB, migrations, or the data-explorer logic (only relocate that file to /data). TypeScript must stay strict — `npm run build` and `tsc` must pass with no errors. Match existing prettier formatting.
+
+VERIFY before reporting: run `npm run build` in web/ and ensure it passes. Report: exact files changed/created/moved + build result.

@@ -64,3 +64,31 @@
 [2026-07-15 09:20] T2 done ｜ api ruff All checks passed!+format 39檔+測試29/29;web prettier+tsc lint綠。證據evidence/T2.md ｜
 [2026-07-15 09:30] M層完成 ｜ T1-T14+T2全done。乾淨重啟後端到端live驗:health ok/login/10表/query=DB(rent_confirm679=679,room31=31)/匯出xlsx197KB/審計寫入/前端 //login//audit 皆200 ｜ 服務常駐:後端bx2flj6zy(:8000) 前端bq6ns3tte(:3000)
 [2026-07-15 09:30] 待辦 ｜ G層(T15主檔CRUD/T16房電表/T17電費引擎/T18發布/T19繳租/T20切換/T21備份)+站7部署T22(不可逆,需使用者定成本檔次+點頭)。憲法凍結中,G層動工前無需重閘(未觸憲法) ｜
+[2026-07-15 12:40] 站8 續接 ｜ 換機到公司接續：程式碼複製到 C:\Users\larry0701\haoshi\repo(D: 對本process唯讀)；本機免安裝PostgreSQL17.5(localhost:5432/haoshi_dev)已建schema+seed+admin+匯入4Excel真資料；後端8010/前端3000常駐;端到端live驗過 ｜ 使用者要求一次做完剩餘roadmap
+[2026-07-15 12:40] 站8 憲法觸碰檢查 ｜ 新需求A(頁簽分組,純前端)+B(首頁清單版,新增前端頁不動契約)未觸憲法/架構;T15-T22原架構v3已含→實作。無需重閘 ｜
+[2026-07-15 12:45] A done ｜ 指揮方直接改(小任務):TAB_GROUPS四組側欄分組+CSS;前端重編612模組無錯GET/200。證據evidence/A.md ｜
+[2026-07-15 12:50] B doing ｜ 派Codex(workspace-write)重建入口首頁清單版:/=首頁(連結分區+公告清單,非按鈕),資料探索移/data,topnav三連結;只動web/;連結指新系統或標開發中 ｜
+[2026-07-15 13:05] B done ｜ Codex(bcsx7lshy)交付,親驗:npm run build綠(/,/data,/audit,/login)、live路由皆200、首頁清單非按鈕、公告2則、順修next.config lockfile警告。證據evidence/B.md ｜
+[2026-07-15 13:05] T15 doing ｜ 派Codex主檔CRUD(site/meter/room):角色寫入權限(admin/manager)+欄位級write_roles+FK校驗+自然鍵重複擋+軟刪(停用歷史可查)+審計+前端/master頁+test_master ｜
+[2026-07-15 13:35] T15 done ｜ Codex(b80ew6daq)交付,親驗:後端35測試OK/build綠(/master/site,meter,room)/重啟後端live驗(建立✓/重複409✓/壞FK400✓/軟刪預設125排除+include_inactive126含歷史✓)。測試殘留已清。證據evidence/T15.md ｜ 後端重啟為bs9nay8vv(:8010)
+[2026-07-15 13:40] T16 doing ｜ 派Codex房↔電表關聯+度數/電價上傳:room_meter_assignment(區間)+meter_event換表+POST /meter-readings(reading_kind+須先傳前期擋+缺值進reading_exception)+POST /avg-prices+exclusion防區間重疊(負向必測③)+景平401-404合併8筆處置+前端上傳頁+test_readings ｜
+[2026-07-15 14:05] T16 done ｜ Codex(b0u8ygjkx)交付,親驗:exclusion約束room_meter_assignment_no_overlap(contype=x)確認在DB;後端42測試OK(含必測③重疊409/須先傳前期/換表/缺值→exception/電價重複409);build綠(/upload/reading,/upload/price);live三端點掛載回真資料。證據evidence/T16.md ｜ 後端重啟b05j3nrug
+[2026-07-15 14:10] T17 準備 ｜ 電費引擎(最硬,原標opus):先讀O365手冊PDF萃取三模式公式(一般/景平合併/總電費拆帳)+四捨五入規則,再派Codex,以免黑箱猜錯 ｜
+[2026-07-15 14:15] T17 doing ｜ 派Codex電費引擎(5模式精確公式)+狀態機+鎖/冪等(必測②)+snapshot+15 golden case+對帳CLI+test_billing ｜
+[2026-07-15 14:55] T17 引擎交付 ｜ Codex(b4gqeh5ht):47測試OK/15golden全模式精確;但對帳202606吻12/不符460(重算48947 vs真實337k)——嚴重不符 ｜
+[2026-07-15 15:05] T17 指揮方修正 ｜ 揪引擎bug:找上期寫死previous_ym(上個月),雙月抄表抓空→改_prior_reading_for(最近早於本期);重跑對帳吻12→125 ｜
+[2026-07-15 15:15] T17 JUDGMENT ｜ 診斷:669房一般/特殊模式僅3→非模式問題;202606=44月抄+274雙月抄+49無上期;不符261筆>100元;根因=歷史雙月帳×best-effort匯入讀數+舊資料髒值(負電費/null)無法精準還原。引擎邏輯正確(golden+125精確) ｜ 對帳acceptance未達
+[2026-07-15 15:15] T17 blocked ｜ 停autonomous grind,升使用者決策:A新系統往後權威清算(建議)/B投入精準還原歷史(需舊系統計費設定)。決策前不進T18(發布會落正式應收)。證據evidence/T17.md ｜
+[2026-07-15 15:25] T17 決策 ｜ 使用者選A「往後權威清算」:引擎正確直接採用,不強求重現舊帳單,新系統從起始期乾淨算新帳。歷史對帳非阻擋項 ｜ T17 引擎 done,續T18
+[2026-07-15 15:25] T17 done ｜ 引擎(5模式)+狀態機+鎖/冪等+snapshot+15golden+對帳CLI;47測試OK;採往後權威策略。證據evidence/T17.md ｜
+[2026-07-15 15:30] T18 doing ｜ 派Codex電費發布→應收:billing_run狀態機calculated→approved→published→reversed+publish落rent_confirm(房租+電費+固定費+例外,唯一鍵room+ym+charge_type+run_version)+重複publish擋(負向必測②)+reversed反向帳不刪原+publish後不可變+test_publish ｜
+[2026-07-15 16:00] T18 done ｜ Codex(b746w2por)交付,親驗:53測試OK;live金流room4/202606算→approve→publish(rent_confirm月結/已確認/電費1635)→reverse→重複publish擋409(必測②)。證據evidence/T18.md ｜ 後端重啟boov69sc0
+[2026-07-15 16:05] 事件 ｜ live清理SQL條件過寬(run_version>=)誤刪room4/202606匯入歷史2筆→重新匯入還原(1896→1898)。教訓:清理用精確id勿用>= ｜
+[2026-07-15 16:10] T19 doing ｜ 派Codex繳租確認頁(前端):電費作業/繳租確認頁-選期+scope→建試算→核准→發布→看rent_confirm明細(房租/電費/固定費/例外/總額+狀態機),portal繳租確認管理轉available ｜
+[2026-07-15 16:20] ⏸ 中斷 ｜ 使用者要重開機,暫停開發。中斷點=T19施工中(Codex bmzkt303k,重開機會被殺,/billing頁尚未寫出→回來重派T19:`cat .devline/_codex_T19.txt | codex exec --sandbox workspace-write -`,若有半成品先覆蓋)。若web/app/billing有殘檔先檢查 ｜
+[2026-07-15 16:20] 續接資訊(重開機後) ｜ 進度:A/B/T15/T16/T17(往後權威)/T18=done;T19=待重派;T20-T22=待使用者確認(不可逆)。程式碼C:\Users\larry0701\haoshi\repo(D:唯讀)。重開機後三服務全停,需重啟→用C:\Users\larry0701\haoshi\start.ps1:①本機PG(pgsql\bin\pg_ctl -D pgdata start)②後端uvicorn:8010③前端npm dev:3000。真資料已在haoshi_dev(rent_confirm1898)。帳號admin/admin123 ｜
+[2026-07-15 18:11] 站8 續接 ｜ 重開機後跑start.ps1拉起三服務;端到端健檢綠(PG5432/API8010 health ok/WEB3000 //login→JWT178);瀏覽器http://localhost:3000可開 ｜
+[2026-07-15 18:11] T19 續接判斷 ｜ 查web/app/billing:中斷前Codex(bmzkt303k)其實已落完整頁(非半成品,續接筆記「尚未寫出」是中斷當下推測);portal-data+topnav已掛/billing;前後端契約逐項對讀吻合→改採「驗證既有實作」而非盲目重派覆蓋 ｜
+[2026-07-15 18:11] T19 揪錯 ｜ tsc gate揪1 build-breaking錯:formatScope尾行scope.room_ids,TS narrow後殘留{type:"all"}無此屬性→TS2339,next build會擋(中斷Codex未跑到build被殺漏掉)。dev不做完整型別檢查故render200無overlay ｜
+[2026-07-15 18:11] T19 指揮方修正 ｜ 一行型別收斂:補"room_ids" in scope明確分支+fallback"全部"。非僅為過build—live顯示後端把{room_id:4}正規化存{"room_ids":[4]},GET run即走此分支 ｜
+[2026-07-15 18:11] T19 done ｜ 親驗:npm run lint(tsc)綠、npm run build綠(13/13靜態頁,/billing 4.49kB在列)、live冒煙(login→POST run scope{room_id:4}/202606→run50 calculated/summary鍵吻合/total_amount1635與T18一致→GET run scope正規化room_ids→GET details房704/1635/電費)、dev /billing 200。frontend-only未觸後端/憲法。證據evidence/T19.md ｜ 限:無瀏覽器,互動click-through待使用者親開最後一哩;遺留run50為calculated試算(不動rent_confirm)

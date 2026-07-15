@@ -27,13 +27,17 @@ def user_payload(user: AppUser) -> dict[str, int | str]:
 
 
 def set_refresh_cookie(response: Response, token: str) -> None:
+    samesite = settings.auth_cookie_samesite.lower()
+    # Browsers reject SameSite=None cookies unless Secure is also set (needed for
+    # cross-site frontend/backend, e.g. Vercel web -> Render API).
+    secure = settings.auth_cookie_secure or samesite == "none"
     response.set_cookie(
         settings.auth_refresh_cookie_name,
         token,
         max_age=settings.refresh_token_ttl_seconds,
         httponly=True,
-        secure=settings.auth_cookie_secure,
-        samesite="strict",
+        secure=secure,
+        samesite=samesite,
         path="/",
     )
 
@@ -134,7 +138,14 @@ def logout(
         if session and session.revoked_at is None:
             session.revoked_at = datetime.now(UTC)
             db.commit()
-    response.delete_cookie(settings.auth_refresh_cookie_name, path="/")
+    samesite = settings.auth_cookie_samesite.lower()
+    response.delete_cookie(
+        settings.auth_refresh_cookie_name,
+        path="/",
+        httponly=True,
+        secure=settings.auth_cookie_secure or samesite == "none",
+        samesite=samesite,
+    )
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
 

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     lockout_threshold: int = 5
     lockout_window_seconds: int = 15 * 60
     auth_cookie_secure: bool = False
+    auth_cookie_samesite: str = "strict"
     auth_refresh_cookie_name: str = "refresh_token"
     object_store_endpoint: str | None = None
     object_store_key: str | None = None

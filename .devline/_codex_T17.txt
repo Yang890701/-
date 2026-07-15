@@ -1,0 +1,37 @@
+You are implementing in this git repo (FastAPI backend api/). First read .devline/02-constitution.md, .devline/02-architecture.md (電費計算資料流 section + v3 追加 billing run 冪等/發布邊界), .devline/03-tasks.md, and api/app/routers/meter.py + api/app/db/models/__init__.py. Execute ONLY task T17 (電費計算引擎). This is the hardest, correctness-critical task (real money). Codex必測② = billing_run 鎖/冪等.
+
+## ELECTRICITY FORMULA (authoritative, from O365 手冊). Per room, per billing_ym, chosen by room.billing_mode (電費計算類型):
+- 一般 (normal): 電費 = (本期度數 − 上期度數) × 當期平均電價(該房電表, 該 billing_ym). 上期 = same assignment, immediately-prior billing_ym reading; first period uses assignment.initial_reading.
+- 固定/特殊電價 (special_price): 電費 = (本期度數 − 上期度數) × special_price.price for that room (overrides avg_price).
+- 景平 401-404 合併: 景平401 room's usage = usage(景平401 meter) + usage(景平402 meter); 景平403 room's usage = usage(景平403) + usage(景平404); 電費 = 合併用量 × 平均電價. (Four individual meters each have their own readings; sum in pairs.)
+- 總電表與子電表 (total & sub meter): 電費 = (總電表用量 − 子電表用量) × 平均電價. The room uploads TWO readings per period (總電表 + 子電表) distinguishable via reading_kind or meter_category.
+- 總電費拆帳 (total bill split): 電費 = 台電帳單總額 − Σ(子房一般電費). 台電帳單總額 for the period comes from exception_charge rows of charge_type indicating 台電帳單 (or a dedicated field) for the parent room; subtract the sibling 一般 room's computed 電費.
+- ROUNDING: round HALF-UP to integer NT$ at the final per-room 電費 (Decimal, ROUND_HALF_UP). Document the rule in code.
+- Missing prior/current reading, or negative usage → do NOT hard-compute; record a reading_exception (or skip that room in the run with a noted reason). Never crash the run.
+
+## ENGINE (api/app/services/billing.py + api/app/routers/billing.py, register router in main.py):
+- State machine on billing_run.status: draft → calculated → approved → published → reversed. (T17 covers up to 'calculated'; publish is T18 — do NOT implement publish→rent_confirm here.)
+- POST /api/billing/runs {billing_ym, scope}  -> create a run, compute electricity for all in-scope rooms, store results, set status='calculated', return {run_id, status, summary}.
+  - Concurrency: acquire a mutex on (billing_ym, scope) — use a DB advisory lock or a uniqueness guard — so two concurrent runs for the same (billing_ym, scope) cannot both proceed. Second one -> 409.
+  - idempotency_key: accept optional key; same key returns the SAME existing run (no duplicate) -> idempotent. billing_run.idempotency_key is unique.
+  - input_snapshot: freeze the readings + prices used (store refs/values in billing_run.input_snapshot JSONB) so the run is reproducible.
+- Results: one billing_run_detail per room (subtotal = 電費), and billing_run_charge_line rows (charge_type='電費', amount, source_ref JSONB pointing at the readings/price used).
+- GET /api/billing/runs/{id} -> {status, summary}; GET /api/billing/runs/{id}/details -> paginated per-room lines.
+- Authorization: admin|manager create; accounting|admin|manager read.
+
+## GOLDEN CASES (golden_case table exists: case_code, input_data JSONB, expected_output JSONB):
+- Seed ≥3 golden cases PER mode (一般/固定/景平合併/總電表子表/總電費拆帳) with HAND-COMPUTED expected 電費 (compute by hand from small inputs, put exact expected integer). Add a function/test that runs each golden case through the engine and asserts equality. Put seeding in api/app/meta/ or a script; make it idempotent.
+
+## RECONCILIATION HARNESS (critical): api/app/services/billing_reconcile.py + a CLI (python -m app.services.billing_reconcile --ym YYYYMM):
+- For a given billing_ym, recompute 電費 per room via the engine and compare to the imported rent_confirm.electricity_amount for that room+ym. Output a report: total rooms, matched (|diff|<=1), mismatched (with room_code, computed, expected, diff), per-site subtotal computed vs expected, and overall totals. Write JSON to stdout. Do NOT assert pass — just produce the report (real legacy data may have quirks; we will review).
+
+## TESTS (api/tests/test_billing.py, transactional-rollback pattern like test_meter.py):
+- 必測②: same (billing_ym, scope) concurrent/second run blocked (409) OR same idempotency_key returns same run_id (idempotent) — test both lock and idempotency.
+- golden cases: each mode's golden case computes the exact expected 電費.
+- 一般 mode end-to-end: build room+assignment+two readings+avg_price, run, assert billing_run_detail.subtotal == hand value.
+- missing prior reading -> room skipped with exception/reason, run still completes.
+- state = 'calculated' after run.
+
+CONSTRAINTS: respect frozen constitution/architecture; do not implement publish (T18); do not touch frontend (T19 does the UI); keep Python clean; tests must pass with `python -m unittest discover -s tests`.
+
+VERIFY before reporting: run the full test suite (venv python, DATABASE_URL+JWT env). Also RUN the reconciliation CLI for one real month (pick a billing_ym that exists in the data, e.g. 202606) and INCLUDE the reconciliation summary numbers in your report (matched/mismatched counts + total computed vs expected). Report: files changed + test results + golden-case results + reconciliation summary.
