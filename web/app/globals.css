@@ -401,6 +401,23 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
+.portal-category + .portal-category {
+  margin-top: 16px;
+}
+
+.portal-category-title {
+  color: #6a7075;
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.portal-row-label .portal-tag {
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
 .portal-tag,
 .notice-pin {
   background: #f1f0ed;

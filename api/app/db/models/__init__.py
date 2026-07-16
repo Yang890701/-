@@ -616,6 +616,57 @@ class Job(CoreColumns, Base):
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class PortalLinkGroup(CoreColumns, Base):
+    __tablename__ = "portal_link_group"
+    __table_args__ = (
+        Index("uq_portal_link_group_code_active", "group_code", unique=True, postgresql_where=active_where()),
+        {"comment": "入口首頁-連結群組"},
+    )
+
+    group_code: Mapped[str] = mapped_column(Text, nullable=False)
+    group_name: Mapped[str] = mapped_column(Text, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
+class PortalLinkCategory(CoreColumns, Base):
+    __tablename__ = "portal_link_category"
+    __table_args__ = (
+        Index("uq_portal_link_category_code_active", "category_code", unique=True, postgresql_where=active_where()),
+        {"comment": "入口首頁-連結分類"},
+    )
+
+    category_code: Mapped[str] = mapped_column(Text, nullable=False)
+    group_code: Mapped[str] = mapped_column(Text, nullable=False)
+    category_name: Mapped[str] = mapped_column(Text, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
+class PortalLink(CoreColumns, Base):
+    __tablename__ = "portal_link"
+    __table_args__ = ({"comment": "入口首頁-連結"},)
+
+    category_code: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    is_new: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
+class PortalNotice(CoreColumns, Base):
+    __tablename__ = "portal_notice"
+    __table_args__ = ({"comment": "入口首頁-公告"},)
+
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    content: Mapped[str | None] = mapped_column(Text)
+    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+
+
 class ImportBatch(CoreColumns, Base):
     __tablename__ = "import_batch"
     __table_args__ = ({"comment": "匯入批次"},)

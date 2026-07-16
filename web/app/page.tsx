@@ -1,41 +1,77 @@
+"use client";
+
 import Link from "next/link";
-import { portalNotices, portalSections, type PortalLink } from "./portal-data";
+import { useEffect, useState } from "react";
+import { apiJson } from "../lib/api";
 
-function PortalRow({ row }: { row: PortalLink }) {
-  const content = (
-    <>
-      <span className="portal-row-copy">
-        <span className="portal-row-label">{row.label}</span>
-        <span className="portal-row-description">{row.description}</span>
-      </span>
-      {row.status === "available" ? (
-        <span className="portal-row-action">前往</span>
-      ) : (
-        <span className="portal-tag">開發中</span>
-      )}
-    </>
-  );
+type PortalLinkItem = {
+  title: string;
+  url: string;
+  description: string | null;
+  is_new: boolean;
+};
 
-  if (row.status === "available") {
-    return (
-      <Link className="portal-row portal-row-link" href={row.href}>
-        {content}
-      </Link>
-    );
-  }
+type PortalCategory = {
+  category_code: string;
+  category_name: string;
+  links: PortalLinkItem[];
+};
 
+type PortalGroup = {
+  group_code: string;
+  group_name: string;
+  categories: PortalCategory[];
+};
+
+type PortalNoticeItem = {
+  title: string;
+  content: string | null;
+  pinned: boolean;
+};
+
+type PortalData = {
+  groups: PortalGroup[];
+  notices: PortalNoticeItem[];
+};
+
+function PortalRow({ link }: { link: PortalLinkItem }) {
   return (
-    <div className="portal-row portal-row-disabled" aria-disabled="true">
-      {content}
-    </div>
+    <Link className="portal-row portal-row-link" href={link.url}>
+      <span className="portal-row-copy">
+        <span className="portal-row-label">
+          {link.title}
+          {link.is_new ? <span className="portal-tag">新</span> : null}
+        </span>
+        {link.description ? (
+          <span className="portal-row-description">{link.description}</span>
+        ) : null}
+      </span>
+      <span className="portal-row-action">前往</span>
+    </Link>
   );
 }
 
 export default function PortalHomePage() {
-  const notices = [
-    ...portalNotices.filter((notice) => notice.pinned),
-    ...portalNotices.filter((notice) => !notice.pinned),
-  ];
+  const [data, setData] = useState<PortalData | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiJson<PortalData>("/api/portal")
+      .then((res) => {
+        if (!cancelled) setData(res);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "入口內容載入失敗");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <main className="page portal-page">
@@ -45,38 +81,47 @@ export default function PortalHomePage() {
         <p>主檔管理、電費作業與資料查詢</p>
       </div>
 
-      <div className="portal-layout">
-        <div className="portal-sections">
-          {portalSections.map((section) => (
-            <section className="card portal-card" key={section.title}>
-              <h2 className="portal-card-title">{section.title}</h2>
-              <div className="portal-list">
-                {section.rows.map((row) => (
-                  <PortalRow key={row.label} row={row} />
+      {loading ? <div className="loading">載入中</div> : null}
+      {error ? <div className="error">{error}</div> : null}
+
+      {data ? (
+        <div className="portal-layout">
+          <div className="portal-sections">
+            {data.groups.map((group) => (
+              <section className="card portal-card" key={group.group_code}>
+                <h2 className="portal-card-title">{group.group_name}</h2>
+                {group.categories.map((category) => (
+                  <div className="portal-category" key={category.category_code}>
+                    <h3 className="portal-category-title">{category.category_name}</h3>
+                    <div className="portal-list">
+                      {category.links.map((link) => (
+                        <PortalRow key={link.url} link={link} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </section>
+            ))}
+          </div>
+
+          <aside className="portal-aside" aria-label="公告區">
+            <section className="card portal-card">
+              <h2 className="portal-card-title">公告區</h2>
+              <div className="notice-list">
+                {data.notices.map((notice, index) => (
+                  <article className="notice-item" key={`${index}-${notice.title}`}>
+                    <div className="notice-title-row">
+                      <h3>{notice.title}</h3>
+                      {notice.pinned ? <span className="notice-pin">置頂</span> : null}
+                    </div>
+                    {notice.content ? <p>{notice.content}</p> : null}
+                  </article>
                 ))}
               </div>
             </section>
-          ))}
+          </aside>
         </div>
-
-        <aside className="portal-aside" aria-label="公告區">
-          <section className="card portal-card">
-            <h2 className="portal-card-title">公告區</h2>
-            <div className="notice-list">
-              {notices.map((notice) => (
-                <article className="notice-item" key={`${notice.date}-${notice.title}`}>
-                  <div className="notice-title-row">
-                    <h3>{notice.title}</h3>
-                    {notice.pinned ? <span className="notice-pin">置頂</span> : null}
-                  </div>
-                  {notice.content ? <p>{notice.content}</p> : null}
-                  <time dateTime={notice.date}>{notice.date}</time>
-                </article>
-              ))}
-            </div>
-          </section>
-        </aside>
-      </div>
+      ) : null}
     </main>
   );
 }

@@ -10,6 +10,7 @@ from app.routers.data import router as data_router
 from app.routers.master import router as master_router
 from app.routers.meter import router as meter_router
 from app.routers.meta import router as meta_router
+from app.routers.portal import router as portal_router
 
 app = FastAPI(title="Haoshi API")
 
@@ -31,6 +32,7 @@ async def add_noindex_header(request, call_next):
 
 app.include_router(auth_router)
 app.include_router(meta_router)
+app.include_router(portal_router)
 app.include_router(data_router)
 app.include_router(master_router)
 app.include_router(meter_router)
