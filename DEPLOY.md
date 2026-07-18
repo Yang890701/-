@@ -96,6 +96,9 @@ New → **Web Service** → 連 GitHub repo `Yang890701/-`。
 | `AUTH_COOKIE_SECURE` | `true` |
 | `AUTH_COOKIE_SAMESITE` | `none`（前後端跨網域必需） |
 | `CORS_ALLOWLIST` | 先填 `https://example.vercel.app`，步驟 6 再改成真 Vercel 網域 |
+| `ANTHROPIC_API_KEY` | AI 助理用的 Anthropic 金鑰（沒填則 AI 問答回錯誤、其餘功能不受影響） |
+| `ASSISTANT_MODEL` | `claude-sonnet-4-6`（省錢可換 `claude-haiku-4-5`） |
+| `ASSISTANT_EFFORT` | `low` |
 
 部署完成取得後端 URL：`https://<render-app>.onrender.com`。驗證 `GET /health` 回 `{"status":"ok"}`。
 
@@ -144,6 +147,11 @@ Add New → **Project** → 匯入 GitHub repo `Yang890701/-`。
 | `AUTH_COOKIE_SECURE` | `false` | `true` |
 | `AUTH_COOKIE_SAMESITE` | `strict` | `none` |
 | `CORS_ALLOWLIST` | `http://localhost:3000` | Vercel 網域 |
+| `ANTHROPIC_API_KEY` | 無 → AI 問答回錯誤 | Anthropic Console 的 API key |
+| `ASSISTANT_MODEL` | `claude-opus-4-8` | `claude-sonnet-4-6`（demo 實際採用） |
+| `ASSISTANT_EFFORT` | `medium` | `low` |
+
+> 實際 demo 的 `DATABASE_URL` 已由 Neon 改為自有 nexonnect 伺服器（見 `.devline/log.md` 2026-07-16），表格中 Neon 寫法僅為原始部署紀錄。
 
 ## 疑難
 
