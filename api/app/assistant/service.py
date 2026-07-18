@@ -124,6 +124,9 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "彙總。對一張表 group by 一個欄位、對一個數值欄位做 sum/avg/count/max/min。"
             "用於筆數與非金額統計(各狀態筆數、各月抄表筆數)。回傳每列 {group, value}。"
+            "group_by 除了該表欄位,還可用特殊值 'site':表含 room_id 時自動沿 room→site "
+            "聚到社區層,group 回社區名稱(例:各社區平均合約租金 = table_code=tenant_contract, "
+            "group_by=site, fn=avg, measure_col=rent)。"
             "注意:rent_confirm 的金額欄位統計會被程式擋下,請用 revenue。"
         ),
         "input_schema": {

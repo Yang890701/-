@@ -93,13 +93,28 @@ def execute_aggregate(
     by_code = {c.col_code: c for c in columns}
     allowed = allowed_columns(user.role, table_code, db)
 
-    if group_by not in allowed or group_by not in by_code:
-        raise ValueError(f"不可用的分組欄位:{group_by}")
     physical = Base.metadata.tables.get(table_meta.physical_table)
     if physical is None:
         raise ValueError("資料表未註冊")
 
-    group_col = physical.c[by_code[group_by].physical_column]
+    from_clause = physical
+    extra_where: list[Any] = []
+    if group_by == "site":
+        # 虛擬分組:明細表(合約/固定費/例外收費…)沒有社區欄,但含 room_id 者
+        # 可沿 room→site 聚到社區層,group 直接回社區名稱(不吐內部 id)
+        if "room_id" not in physical.c:
+            raise ValueError("此表沒有 room_id,無法依社區分組")
+        room_t = Base.metadata.tables["room"]
+        site_t = Base.metadata.tables["site"]
+        from_clause = physical.join(room_t, room_t.c.id == physical.c.room_id).join(
+            site_t, site_t.c.id == room_t.c.site_id
+        )
+        group_col = site_t.c.name
+        extra_where = [room_t.c.deleted_at.is_(None), site_t.c.deleted_at.is_(None)]
+    else:
+        if group_by not in allowed or group_by not in by_code:
+            raise ValueError(f"不可用的分組欄位:{group_by}")
+        group_col = physical.c[by_code[group_by].physical_column]
     if fn == "count":
         measure = func.count().label("value")
     else:
@@ -107,8 +122,10 @@ def execute_aggregate(
             raise ValueError(f"不可用的量測欄位:{measure_col}")
         measure = _AGG_FNS[fn](physical.c[by_code[measure_col].physical_column]).label("value")
 
-    statement = select(group_col.label("group"), measure).select_from(physical)
+    statement = select(group_col.label("group"), measure).select_from(from_clause)
     statement = _apply_active(statement, physical)
+    if extra_where:
+        statement = statement.where(*extra_where)
     for item in filters or []:
         col = by_code.get(item.get("col"))
         if col is None:

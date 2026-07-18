@@ -87,6 +87,17 @@ CASES: list[dict[str, Any]] = [
         "check": "values_in_output",
     },
     {
+        "id": "avg-contract-rent-by-site",
+        "question": "每個社區的平均合約租金是多少?由高到低排前十名",
+        "sql": "SELECT ROUND(AVG(tc.rent), 0) FROM tenant_contract tc "
+               "JOIN room r ON r.id = tc.room_id JOIN site s ON s.id = r.site_id "
+               "WHERE tc.deleted_at IS NULL AND tc.rent IS NOT NULL "
+               "AND r.deleted_at IS NULL AND s.deleted_at IS NULL "
+               "GROUP BY s.name ORDER BY 1 DESC LIMIT 10",
+        "check": "values_in_output",
+        "tolerance": 1,  # AVG 小數呈現的捨入差
+    },
+    {
         "id": "no-data-202503",
         "question": "2025年3月的應收總額是多少?",
         "check": "answer_contains_any",
