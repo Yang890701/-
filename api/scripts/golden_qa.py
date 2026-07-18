@@ -72,6 +72,21 @@ CASES: list[dict[str, Any]] = [
         "tolerance": 0.5,  # 模型可能取到小數 1 位呈現
     },
     {
+        "id": "rooms-of-site-join",
+        "question": "大湖山莊社區總共有幾間房?",
+        "sql": "SELECT COUNT(*) FROM room r JOIN site s ON s.id = r.site_id "
+               "WHERE s.name = '大湖山莊' AND r.deleted_at IS NULL AND s.deleted_at IS NULL",
+        "check": "values_in_output",
+    },
+    {
+        "id": "top5-contract-rent-join",
+        "question": "租客合約裡月租金最高的前五筆是哪幾間房?",
+        "sql": "SELECT tc.rent FROM tenant_contract tc JOIN room r ON r.id = tc.room_id "
+               "WHERE tc.deleted_at IS NULL AND r.deleted_at IS NULL "
+               "ORDER BY tc.rent DESC NULLS LAST LIMIT 5",
+        "check": "values_in_output",
+    },
+    {
         "id": "no-data-202503",
         "question": "2025年3月的應收總額是多少?",
         "check": "answer_contains_any",

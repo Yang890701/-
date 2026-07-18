@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterator
 from typing import Any
 
@@ -15,7 +16,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.assistant.profile import build_data_profile
-from app.assistant.tools import ASSISTANT_TABLES, execute_aggregate, execute_query, execute_revenue
+from app.assistant.tools import (
+    ASSISTANT_TABLES,
+    execute_aggregate,
+    execute_lookup,
+    execute_query,
+    execute_revenue,
+)
 from app.config import settings
 from app.db.models import AppUser, AuditLog, ColumnMeta, TableMeta
 
@@ -38,7 +45,7 @@ _PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
     "claude-haiku": (1.0, 5.0),
 }
 
-_TOOL_ZH = {"run_query": "查詢", "aggregate": "彙總", "revenue": "金額統計"}
+_TOOL_ZH = {"run_query": "查詢", "aggregate": "彙總", "revenue": "金額統計", "lookup": "對照"}
 _BY_ZH = {"site": "依社區", "month": "依帳月", "room": "依房號"}
 _MEASURE_ZH = {
     "total": "應收總額", "rent": "租金", "electricity": "電費",
@@ -77,7 +84,7 @@ def _source_label(tool: str, inputs: dict[str, Any], labels: dict[str, str]) -> 
             parts.append(str(ym))
         detail = "・".join(p for p in parts if p)
         return f"金額統計「租金確認」({detail})" if detail else "金額統計「租金確認」"
-    tc = str(inputs.get("table_code", ""))
+    tc = str(inputs.get("table_code") or inputs.get("kind") or "")
     zh = labels.get(tc, tc)
     return f"{_TOOL_ZH.get(tool, tool)}「{zh}」"
 
@@ -160,6 +167,25 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "lookup",
+        "description": (
+            "內部 id ↔ 名稱對照(跨表橋)。kind=room/site/meter。"
+            "ids=[內部 id...] 回 {id, code, name}(room 另含 site_id);"
+            "q='關鍵字' 以代碼/名稱模糊反查 id(最多 20 筆)。"
+            "任何工具回傳 room_id/site_id/meter_id 而你需要名稱,"
+            "或需要先拿到內部 id 才能對其他表下篩選(例如某社區的房間)時,用本工具,禁止用猜的。"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "kind": {"type": "string", "enum": ["room", "site", "meter"]},
+                "ids": {"type": "array", "items": {"type": "integer"}},
+                "q": {"type": "string"},
+            },
+            "required": ["kind"],
+        },
+    },
+    {
         "name": "present",
         "description": (
             "交付最終答案給使用者。answer 用繁體中文。"
@@ -217,7 +243,8 @@ _RULES = """【作答規則】
 10. answer 必須是純文字(可換行),不要用 markdown 表格/粗體/emoji——表格類內容請放 table widget。
 11. 每次答案結尾用一句話交代查了哪張表、什麼條件(前端會顯示為來源)。務必以 present 交付。
 12. 回答與 widget 一律呈現名稱(房號、社區名),不得出現資料庫內部代理鍵(room_id、site_id 等數字 id);
-    工具回傳只有 id 時,先查 room/site 表把 id 對應成名稱再呈現。
+    工具回傳只有 id 時,用 lookup(kind, ids=[...]) 把 id 對照成名稱再呈現;
+    要用 site_id/room_id/meter_id 對其他表下篩選時,先用 lookup(kind, q=名稱) 反查 id。
 13. 對話歷史只用來理解指代(「那二月呢」「換成電費」);回答中的每個數字仍必須本輪用工具重新查得,
     不可沿用歷史訊息裡出現過的數字(資料可能已更新,且歷史經過截斷)。"""
 
@@ -370,6 +397,8 @@ def ask_events(
                     data = execute_aggregate(db, user, **block.input)
                 elif block.name == "revenue":
                     data = execute_revenue(db, user, **block.input)
+                elif block.name == "lookup":
+                    data = execute_lookup(db, user, **block.input)
                 else:
                     raise ValueError(f"未知工具:{block.name}")
                 sources.append({
@@ -379,6 +408,9 @@ def ask_events(
                 })
                 result_content, is_error = json.dumps(data, ensure_ascii=False, default=str), False
             except Exception as exc:  # noqa: BLE001 — 回饋給模型讓它換方式
+                # SQL 失敗會把 PostgreSQL 交易標記為 aborted,不回滾的話
+                # 後續所有工具查詢與稽核寫入全部跟著炸(InFailedSqlTransaction)
+                db.rollback()
                 result_content, is_error = f"錯誤:{exc}", True
             results.append(
                 {
@@ -412,11 +444,15 @@ def ask(
 
 
 def _audit(db: Session, user: AppUser, question: str, sources: list[dict[str, Any]]) -> None:
-    db.add(
-        AuditLog(
-            actor=user.id,
-            action="assistant_ask",
-            filters={"question": question, "sources": sources},
+    try:
+        db.add(
+            AuditLog(
+                actor=user.id,
+                action="assistant_ask",
+                filters={"question": question, "sources": sources},
+            )
         )
-    )
-    db.commit()
+        db.commit()
+    except Exception:  # noqa: BLE001 — 稽核失敗不可毀掉已經算好的答案
+        db.rollback()
+        logging.getLogger(__name__).warning("assistant 稽核寫入失敗", exc_info=True)

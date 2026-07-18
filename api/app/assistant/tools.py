@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.authz.fields import allowed_columns
-from app.db.models import AppUser, Base, RentConfirm, Room, Site
+from app.db.models import AppUser, Base, Meter, RentConfirm, Room, Site
 from app.routers.data import (
     FilterItem,
     SortItem,
@@ -119,6 +119,47 @@ def execute_aggregate(
     statement = _apply_scope(statement, user, table_code)
     statement = statement.group_by(group_col).order_by(measure.desc()).limit(_MAX_ROWS)
     return [dict(row) for row in db.execute(statement).mappings().all()]
+
+
+# lookup 對照支援的實體:kind → (model, 代碼欄, 名稱欄)
+_LOOKUP_KINDS = {
+    "room": (Room, Room.room_code, Room.room_name),
+    "site": (Site, Site.site_code, Site.name),
+    "meter": (Meter, Meter.electricity_code, Meter.name),
+}
+
+
+def execute_lookup(
+    db: Session,
+    user: AppUser,
+    kind: str,
+    ids: list[int] | None = None,
+    q: str | None = None,
+) -> list[dict[str, Any]]:
+    """內部 id ↔ 名稱對照(跨表橋)。
+
+    column_meta 刻意不暴露代理鍵 id,模型因此無法自行把 room_id/site_id
+    對回名稱、也拿不到 id 來下篩選——本工具補上這座橋:
+    ids=[...] 正查名稱;q='關鍵字' 以代碼/名稱模糊反查 id(最多 20 筆)。
+    room 另回 site_id 方便續查。沿用表級 read_roles 與列級 scope。
+    """
+    if kind not in _LOOKUP_KINDS:
+        raise ValueError("kind 只能是 room / site / meter")
+    _metadata_for_table(db, kind, user)  # 表級 read_roles 檢查
+    model, code_col, name_col = _LOOKUP_KINDS[kind]
+    extra = [Room.site_id] if kind == "room" else []
+    stmt = select(model.id, code_col.label("code"), name_col.label("name"), *extra).where(
+        model.deleted_at.is_(None)
+    )
+    if ids:
+        stmt = stmt.where(model.id.in_([int(i) for i in ids][:100]))
+    elif q and str(q).strip():
+        pattern = f"%{str(q).strip()}%"
+        stmt = stmt.where(code_col.ilike(pattern) | name_col.ilike(pattern))
+    else:
+        raise ValueError("lookup 需要 ids 或 q 其中之一")
+    stmt = _apply_scope(stmt, user, kind).order_by(model.id).limit(100 if ids else 20)
+    return [dict(row) for row in db.execute(stmt).mappings().all()]
 
 
 _REVENUE_MEASURES = {
