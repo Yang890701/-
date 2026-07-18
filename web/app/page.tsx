@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiJson } from "../lib/api";
+import { WidgetGrid, type Widget } from "./_components/widget";
 
 type PortalLinkItem = {
   title: string;
@@ -34,6 +35,12 @@ type PortalData = {
   notices: PortalNoticeItem[];
 };
 
+type DashboardData = {
+  title: string;
+  widgets: Widget[];
+  note?: string;
+};
+
 function PortalRow({ link }: { link: PortalLinkItem }) {
   return (
     <Link className="portal-row portal-row-link" href={link.url}>
@@ -53,6 +60,8 @@ function PortalRow({ link }: { link: PortalLinkItem }) {
 
 export default function PortalHomePage() {
   const [data, setData] = useState<PortalData | null>(null);
+  const [dash, setDash] = useState<DashboardData | null>(null);
+  const [dashError, setDashError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -68,6 +77,14 @@ export default function PortalHomePage() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    // 經營總覽獨立載入:失敗不影響入口連結
+    apiJson<DashboardData>("/api/assistant/dashboard")
+      .then((res) => {
+        if (!cancelled) setDash(res);
+      })
+      .catch((err) => {
+        if (!cancelled) setDashError(err instanceof Error ? err.message : "儀表板載入失敗");
+      });
     return () => {
       cancelled = true;
     };
@@ -78,8 +95,23 @@ export default function PortalHomePage() {
       <div className="portal-heading">
         <p className="portal-kicker">內部入口</p>
         <h1>好室開發內部入口網站</h1>
-        <p>主檔管理、電費作業與資料查詢</p>
+        <p>經營總覽、主檔管理、電費作業與資料查詢</p>
       </div>
+
+      <section className="home-dash" aria-label="經營總覽">
+        <div className="home-dash-head">
+          <h2 className="section-title">{dash?.title ?? "經營總覽"}</h2>
+          <span className="muted" style={{ fontSize: 12.5 }}>
+            想深入分析?點右側「✦ AI 助理」直接提問
+          </span>
+        </div>
+        {dashError ? <div className="error">{dashError}</div> : null}
+        {dash?.widgets?.length ? (
+          <WidgetGrid widgets={dash.widgets} />
+        ) : !dashError ? (
+          <div className="muted">總覽載入中…</div>
+        ) : null}
+      </section>
 
       {loading ? <div className="loading">載入中</div> : null}
       {error ? <div className="error">{error}</div> : null}

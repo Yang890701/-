@@ -8,3 +8,4 @@ argon2-cffi
 pyjwt
 openpyxl
 httpx2
+anthropic

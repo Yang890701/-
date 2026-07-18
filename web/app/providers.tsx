@@ -12,6 +12,7 @@ import {
   useState,
 } from "react";
 import { apiJson, configureApiAuth, login as apiLogin, type ApiUser } from "../lib/api";
+import { GeniePanel } from "./_components/genie";
 
 type AuthContextValue = {
   accessToken: string | null;
@@ -28,6 +29,7 @@ const TOP_NAV_ITEMS = [
   { href: "/", label: "首頁" },
   { href: "/billing", label: "電費作業" },
   { href: "/data", label: "資料檢視" },
+  { href: "/assistant", label: "AI 助理" },
   { href: "/audit", label: "稽核" },
 ] as const;
 
@@ -187,6 +189,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       {children}
+      <GeniePanel />
     </div>
   );
 }

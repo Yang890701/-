@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     object_store_secret: str | None = None
     object_store_bucket: str | None = None
     cors_allowlist: str = "http://localhost:3000"
+    anthropic_api_key: str | None = None
+    assistant_model: str = "claude-opus-4-8"
+    # low/medium/high:越低越快;demo 求快可設 low,正確性敏感再調高
+    assistant_effort: str = "medium"
 
     model_config = SettingsConfigDict(
         env_file=".env",

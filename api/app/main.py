@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.routers.assistant import router as assistant_router
 from app.routers.attachments import router as attachments_router
 from app.routers.audit import router as audit_router
 from app.routers.auth import router as auth_router
@@ -39,6 +40,7 @@ app.include_router(meter_router)
 app.include_router(billing_router)
 app.include_router(audit_router)
 app.include_router(attachments_router)
+app.include_router(assistant_router)
 
 
 @app.get("/health")
