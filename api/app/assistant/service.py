@@ -13,12 +13,15 @@ from anthropic import Anthropic
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.assistant.profile import build_data_profile
 from app.assistant.tools import ASSISTANT_TABLES, execute_aggregate, execute_query, execute_revenue
 from app.config import settings
 from app.db.models import AppUser, AuditLog, ColumnMeta, TableMeta
 
 _client: Anthropic | None = None
 _MAX_TURNS = 6
+_MAX_HISTORY_MSGS = 12  # 對話歷史最多帶 6 輪問答
+_MAX_HISTORY_CHARS = 800  # 每則歷史訊息截斷長度
 
 OFFTOPIC_REPLY = (
     "我是好室系統的資料客服助理,只能回答與系統資料相關的問題"
@@ -112,7 +115,8 @@ TOOLS: list[dict[str, Any]] = [
         "name": "aggregate",
         "description": (
             "彙總。對一張表 group by 一個欄位、對一個數值欄位做 sum/avg/count/max/min。"
-            "用於統計與趨勢(各月應收、各狀態筆數)。回傳每列 {group, value}。"
+            "用於筆數與非金額統計(各狀態筆數、各月抄表筆數)。回傳每列 {group, value}。"
+            "注意:rent_confirm 的金額欄位統計會被程式擋下,請用 revenue。"
         ),
         "input_schema": {
             "type": "object",
@@ -136,6 +140,7 @@ TOOLS: list[dict[str, Any]] = [
             "by=site 依社區、month 依帳月、room 依房號;measure 選金額欄位;billing_ym 選填(YYYYMM);"
             "order=desc/asc 金額排序方向(by=month 固定依月份)。"
             "排名題用 by=room(或 site)+order=desc(最貴)/asc(最低),結果已排好序,取前 N 筆即可。"
+            "沖銷(reversal)已正確處理;無帳月(billing_ym 空白)的列不納入統計(見資料速覽)。"
             "回傳每列 {group, value},group 是社區名/房號名,可直接呈現。"
         ),
         "input_schema": {
@@ -195,7 +200,8 @@ _RULES = """【作答規則】
    「{offtopic}」
 3. 系統相關但資料不存在的能力(是否已繳款、房東名下總額)→ 用 present 誠實說明系統沒有這筆資料,不硬湊。
 4. 問題模糊(缺月份、社區名不明、多筆同名)→ 先反問使用者,或在答案裡明確講出你採用的假設。
-5. 「這個月/最近」等相對時間 → 先用 aggregate 查該表最大的 billing_ym 對齊,不要用今天日期猜。
+5. 「這個月/最近/今年」等相對時間 → 直接以【資料速覽】的最新月份為錨對齊,
+   不要用今天日期猜,也不必再用工具探測月份範圍(速覽已列出全部涵蓋月份)。
 6. 對 rent_confirm 的任何金額統計或排名(應收/租金/電費/固定費/例外費的總額、平均、
    最貴/最低/前N名)一律用 revenue 工具——它已自動只取每房每月最新 run_version 並可依社區關聯;
    排名用 by=room(或 site)搭配 order=desc(最貴)/asc(最低),結果已排好序,取前 N 筆即可。
@@ -210,7 +216,9 @@ _RULES = """【作答規則】
 10. answer 必須是純文字(可換行),不要用 markdown 表格/粗體/emoji——表格類內容請放 table widget。
 11. 每次答案結尾用一句話交代查了哪張表、什麼條件(前端會顯示為來源)。務必以 present 交付。
 12. 回答與 widget 一律呈現名稱(房號、社區名),不得出現資料庫內部代理鍵(room_id、site_id 等數字 id);
-    工具回傳只有 id 時,先查 room/site 表把 id 對應成名稱再呈現。"""
+    工具回傳只有 id 時,先查 room/site 表把 id 對應成名稱再呈現。
+13. 對話歷史只用來理解指代(「那二月呢」「換成電費」);回答中的每個數字仍必須本輪用工具重新查得,
+    不可沿用歷史訊息裡出現過的數字(資料可能已更新,且歷史經過截斷)。"""
 
 
 def build_system_prompt(db: Session, user: AppUser) -> str:
@@ -234,12 +242,37 @@ def build_system_prompt(db: Session, user: AppUser) -> str:
         "avg_price.meter_id→meter。",
         "同義詞: 案場=社區=site;房號=房=room;房客=租約=tenant_contract;帳單=應收=rent_confirm。",
         "billing_ym 是 YYYYMM 六碼字串。",
+        build_data_profile(db),
         _RULES.replace("{offtopic}", OFFTOPIC_REPLY),
     ]
     return "\n".join(lines)
 
 
-def ask(db: Session, user: AppUser, question: str, context: str | None = None) -> dict[str, Any]:
+def _history_messages(history: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """前端帶來的最近問答輪次 → 合法的 messages 前綴(截斷+強制 user/assistant 交替)。"""
+    out: list[dict[str, Any]] = []
+    for m in (history or [])[-_MAX_HISTORY_MSGS:]:
+        role = m.get("role")
+        text = str(m.get("content") or "").strip()[:_MAX_HISTORY_CHARS]
+        if role not in ("user", "assistant") or not text:
+            continue
+        if out and out[-1]["role"] == role:  # 同角色連續 → 留最後一則
+            out.pop()
+        out.append({"role": role, "content": text})
+    while out and out[0]["role"] == "assistant":  # 必須以 user 開頭
+        out.pop(0)
+    if out and out[-1]["role"] == "user":  # 結尾須是 assistant,才能接本輪的 user 提問
+        out.pop()
+    return out
+
+
+def ask(
+    db: Session,
+    user: AppUser,
+    question: str,
+    context: str | None = None,
+    history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     client = _get_client()
     system = build_system_prompt(db, user)
     content = (
@@ -247,7 +280,7 @@ def ask(db: Session, user: AppUser, question: str, context: str | None = None) -
         if context
         else question
     )
-    messages: list[dict[str, Any]] = [{"role": "user", "content": content}]
+    messages: list[dict[str, Any]] = [*_history_messages(history), {"role": "user", "content": content}]
     sources: list[dict[str, Any]] = []
     labels = _table_labels(db)
     totals = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
@@ -279,7 +312,16 @@ def ask(db: Session, user: AppUser, question: str, context: str | None = None) -
 
         if resp.stop_reason != "tool_use":
             text = next((b.text for b in resp.content if b.type == "text"), "")
-            return {"answer": text or OFFTOPIC_REPLY, "widgets": [], "sources": sources, "usage": usage_summary()}
+            if resp.stop_reason == "max_tokens":
+                # 截斷不可冒用其他訊息:answer 可能斷在半途或全空
+                text = "回答內容過長被截斷,請縮小範圍(例如指定月份或社區)再問一次。"
+            _audit(db, user, question, sources)
+            return {
+                "answer": text or "這次沒有產生回答,請換個問法再試一次。",
+                "widgets": [],
+                "sources": sources,
+                "usage": usage_summary(),
+            }
 
         messages.append({"role": "assistant", "content": resp.content})
         results: list[dict[str, Any]] = []
@@ -340,6 +382,7 @@ def ask(db: Session, user: AppUser, question: str, context: str | None = None) -
             )
         messages.append({"role": "user", "content": results})
 
+    _audit(db, user, question, sources)  # 用盡回合也查過資料,稽核不可漏
     return {"answer": "查詢過於複雜,請縮小範圍再問一次。", "widgets": [], "sources": sources, "usage": usage_summary()}
 
 

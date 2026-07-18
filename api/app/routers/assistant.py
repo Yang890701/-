@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
@@ -23,9 +23,16 @@ from app.db.session import get_db
 router = APIRouter(prefix="/api/assistant", tags=["assistant"])
 
 
+class HistoryMsg(BaseModel):
+    role: str  # "user" | "assistant"(service 端會再驗證)
+    content: str = Field(max_length=4000)
+
+
 class AskRequest(BaseModel):
-    question: str
-    context: str | None = None  # 使用者目前所在頁面(Genie 面板帶入)
+    # 長度上限=成本上限:question 直接進 LLM,無上限會被拿來灌 token(financial DoS)
+    question: str = Field(max_length=1000)
+    context: str | None = Field(default=None, max_length=100)  # 使用者目前所在頁面(Genie 面板帶入)
+    history: list[HistoryMsg] | None = Field(default=None, max_length=24)  # 最近幾輪問答,支援「那二月呢」式追問
 
 
 def _demo_user(db: Session) -> AppUser:
@@ -43,7 +50,8 @@ def _demo_user(db: Session) -> AppUser:
 def ask_endpoint(payload: AskRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
     if not payload.question.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="問題不可為空")
-    return ask(db, _demo_user(db), payload.question, context=payload.context)
+    history = [m.model_dump() for m in payload.history or []]
+    return ask(db, _demo_user(db), payload.question, context=payload.context, history=history)
 
 
 @router.get("/dashboard")

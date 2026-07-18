@@ -796,57 +796,6 @@ tbody tr:hover {
   margin-bottom: 12px;
 }
 
-.barlist {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.barlist-row {
-  align-items: center;
-  display: flex;
-  gap: 10px;
-}
-
-.barlist-row:hover .barlist-bar {
-  filter: brightness(1.08);
-}
-
-.barlist-label {
-  color: #46515b;
-  flex-shrink: 0;
-  font-size: 12.5px;
-  overflow: hidden;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  width: 118px;
-}
-
-.barlist-track {
-  background: #f1efea;
-  border-radius: 99px;
-  flex: 1;
-  height: 16px;
-  overflow: hidden;
-}
-
-.barlist-bar {
-  border-radius: 99px;
-  height: 100%;
-  transition: width 0.5s ease;
-}
-
-.barlist-value {
-  color: #31373d;
-  flex-shrink: 0;
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  text-align: right;
-  width: 62px;
-}
-
 .donut-wrap {
   align-items: center;
   display: flex;

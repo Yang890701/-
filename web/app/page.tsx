@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiJson } from "../lib/api";
-import { WidgetGrid, type Widget } from "./_components/widget";
+import { type Dashboard, WidgetGrid } from "./_components/widget";
 
 type PortalLinkItem = {
   title: string;
@@ -35,11 +35,6 @@ type PortalData = {
   notices: PortalNoticeItem[];
 };
 
-type DashboardData = {
-  title: string;
-  widgets: Widget[];
-  note?: string;
-};
 
 function PortalRow({ link }: { link: PortalLinkItem }) {
   return (
@@ -60,7 +55,7 @@ function PortalRow({ link }: { link: PortalLinkItem }) {
 
 export default function PortalHomePage() {
   const [data, setData] = useState<PortalData | null>(null);
-  const [dash, setDash] = useState<DashboardData | null>(null);
+  const [dash, setDash] = useState<Dashboard | null>(null);
   const [dashError, setDashError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -78,7 +73,7 @@ export default function PortalHomePage() {
         if (!cancelled) setLoading(false);
       });
     // 經營總覽獨立載入:失敗不影響入口連結
-    apiJson<DashboardData>("/api/assistant/dashboard")
+    apiJson<Dashboard>("/api/assistant/dashboard")
       .then((res) => {
         if (!cancelled) setDash(res);
       })
@@ -106,11 +101,13 @@ export default function PortalHomePage() {
           </span>
         </div>
         {dashError ? <div className="error">{dashError}</div> : null}
-        {dash?.widgets?.length ? (
+        {dash === null ? (
+          !dashError ? <div className="muted">總覽載入中…</div> : null
+        ) : dash.widgets?.length ? (
           <WidgetGrid widgets={dash.widgets} />
-        ) : !dashError ? (
-          <div className="muted">總覽載入中…</div>
-        ) : null}
+        ) : (
+          <div className="muted">{dash.note ?? "尚無帳務資料"}</div>
+        )}
       </section>
 
       {loading ? <div className="loading">載入中</div> : null}

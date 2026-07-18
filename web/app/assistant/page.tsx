@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { apiJson } from "../../lib/api";
+import { turnsToHistory } from "../_components/chat";
 import { WidgetGrid, type Widget } from "../_components/widget";
 
 type Source = { tool: string; label?: string; table_code?: string };
@@ -34,7 +35,7 @@ export default function AssistantPage() {
     try {
       const res = await apiJson<Answer>("/api/assistant/ask", {
         method: "POST",
-        body: JSON.stringify({ question: text }),
+        body: JSON.stringify({ question: text, history: turnsToHistory(turns) }),
       });
       setTurns((t) => [...t.slice(0, -1), { q: text, ...res }]);
     } catch (err) {
@@ -96,7 +97,10 @@ export default function AssistantPage() {
           value={q}
           placeholder="例:王小姐這個月帳單多少?"
           onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send(q)}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return; // 注音/倉頡選字的 Enter 不是送出
+            if (e.key === "Enter") send(q);
+          }}
         />
         <button className="button button-primary" onClick={() => send(q)} disabled={loading}>
           {loading ? "查詢中" : "問"}

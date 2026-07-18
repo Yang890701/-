@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { apiJson } from "../../lib/api";
+import { turnsToHistory } from "./chat";
 import { WidgetGrid, type Widget } from "./widget";
 
 type Source = { tool: string; label?: string; table_code?: string; by?: string };
@@ -66,7 +67,7 @@ export function GeniePanel() {
     try {
       const res = await apiJson<Answer>("/api/assistant/ask", {
         method: "POST",
-        body: JSON.stringify({ question: text, context }),
+        body: JSON.stringify({ question: text, context, history: turnsToHistory(turns) }),
       });
       setTurns((t) => [...t.slice(0, -1), { q: text, ...res }]);
     } catch (err) {
@@ -147,7 +148,10 @@ export function GeniePanel() {
             value={q}
             placeholder={`針對「${context}」或任何資料提問…`}
             onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send(q)}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return; // 注音/倉頡選字的 Enter 不是送出
+              if (e.key === "Enter") send(q);
+            }}
           />
           <button className="button button-primary" type="button" onClick={() => send(q)} disabled={loading}>
             {loading ? "…" : "問"}

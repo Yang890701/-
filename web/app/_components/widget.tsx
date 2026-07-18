@@ -4,6 +4,8 @@
 // 純 SVG/CSS,不依賴圖表套件;視覺參考 Tableau 10 配色與 BI 儀表板慣例。
 // 後端 present/dashboard 回傳的 widget 物件直接丟進來即可。
 
+import { useId } from "react";
+
 export type Widget = {
   type: "kpi" | "bar" | "line" | "pie" | "stacked-bar" | "table";
   title?: string;
@@ -15,6 +17,9 @@ export type Widget = {
   columns?: string[];
   rows?: Record<string, unknown>[];
 };
+
+// GET /api/assistant/dashboard 的回應形狀(首頁與 /dashboard 共用)
+export type Dashboard = { title: string; widgets: Widget[]; note?: string };
 
 const PALETTE = [
   "#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F",
@@ -184,9 +189,10 @@ function truncateLabel(s: string, max = 8): string {
 
 function BarChart({ data }: { data: Record<string, unknown>[] }) {
   if (!data.length) return <div className="muted">無資料</div>;
-  const sorted = [...data].sort((a, b) => valueOf(b) - valueOf(a));
-  const rows = sorted.slice(0, MAX_BARS);
-  const rest = sorted.slice(MAX_BARS);
+  // 尊重傳入順序:資料已由後端排好(含 order=asc 的「最低前 N」),
+  // 在這裡重排 desc 會把升冪排名畫成相反意圖
+  const rows = data.slice(0, MAX_BARS);
+  const rest = data.slice(MAX_BARS);
   const restSum = rest.reduce((s, r) => s + valueOf(r), 0);
 
   const W = 560;
@@ -341,13 +347,12 @@ function KpiCard({ widget }: { widget: Widget }) {
 
 /* ---------- 對外元件 ---------- */
 
-let uid = 0;
-
 export function WidgetView({ widget }: { widget: Widget }) {
+  // useId 保證跨 render 穩定且全頁唯一;冒號對 SVG url(#) 參照不合法,去掉
+  const id = useId().replace(/:/g, "");
   if (widget.type === "kpi") return <KpiCard widget={widget} />;
   // 容錯:AI 偶爾把數據放進 rows 而非 data
   const data = widget.data?.length ? widget.data : (widget.rows ?? []);
-  const id = String(uid++);
   return (
     <div className="card chart-card">
       {widget.title ? <div className="chart-title">{widget.title}</div> : null}

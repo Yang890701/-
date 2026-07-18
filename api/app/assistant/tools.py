@@ -25,6 +25,10 @@ from app.routers.data import (
     _filter_expression,
     _metadata_for_table,
 )
+from app.services.billing import (
+    MONTHLY_RENT_CONFIRM_CHARGE_TYPE,
+    REVERSAL_RENT_CONFIRM_CHARGE_TYPE,
+)
 
 # 助理可存取的資料表(demo 範圍;其餘表未註冊 → 碰不到)
 ASSISTANT_TABLES: list[str] = [
@@ -80,6 +84,10 @@ def execute_aggregate(
         raise ValueError(f"不可查詢的資料表:{table_code}")
     if fn not in _AGG_FNS:
         raise ValueError("fn 只能是 sum/avg/count/max/min")
+    # 鐵則防呆:rent_confirm 金額統計必須經 run_version 去重,aggregate 做不到,
+    # 只靠 prompt 約束不可靠——程式層直接擋,錯誤訊息會引導模型改用 revenue。
+    if table_code == "rent_confirm" and fn in {"sum", "avg"} and measure_col in _RENT_CONFIRM_MONEY_COLS:
+        raise ValueError("rent_confirm 的金額統計禁止用 aggregate(不會做 run_version 去重,必定算錯),請改用 revenue 工具")
 
     table_meta, columns = _metadata_for_table(db, table_code, user)  # 無讀取權限會擋下
     by_code = {c.col_code: c for c in columns}
@@ -121,6 +129,10 @@ _REVENUE_MEASURES = {
     "exception": RentConfirm.exception_amount,
 }
 
+_RENT_CONFIRM_MONEY_COLS = {
+    "rent_amount", "electricity_amount", "fixed_fee_amount", "exception_amount", "total_amount",
+}
+
 
 def execute_revenue(
     db: Session,
@@ -135,11 +147,16 @@ def execute_revenue(
 
     rent_confirm 同一(房號, 帳月, 收費類型)可能有多個 run_version(重算),
     本函式只取每組最新版再統計,避免重複計算灌水(直接對全表 SUM/AVG 會算錯)。
+    沖銷列(charge_type=沖銷,金額為負)不獨立去重——只在它抵銷的版本仍是
+    月結現行最新版時入帳;重開新版後,舊版與其沖銷一併淘汰(否則會少算)。
+    無帳月(billing_ym 為空)的列一律排除(匯入殘留,不屬任何月度統計;
+    資料速覽會揭露其筆數與合計)。
     by ∈ site（依社區）/ month（依帳月）/ room（依房號）;
     measure ∈ total/rent/electricity/fixed_fee/exception;fn ∈ sum/avg;
     order ∈ desc/asc(金額排序方向,最貴 desc/最低 asc;by=month 固定依月份序)。
     billing_ym 選填(YYYYMM)。回傳每列 {group, value}。
-    demo 以 admin 執行故未套列級 scope;正式版應在各 join 上補 user_scope。
+    已套表級 read_roles 與列級 user_scope(demo admin 為 no-op),
+    正式版換 get_current_user 即自動生效。
     """
     if by not in {"site", "month", "room"}:
         raise ValueError("by 只能是 site / month / room")
@@ -149,26 +166,37 @@ def execute_revenue(
         raise ValueError("fn 只能是 sum / avg")
     if order not in {"desc", "asc"}:
         raise ValueError("order 只能是 desc / asc")
-    base = [RentConfirm.deleted_at.is_(None)]
+    _metadata_for_table(db, "rent_confirm", user)  # 表級 read_roles 檢查
+
+    base = [RentConfirm.deleted_at.is_(None), RentConfirm.billing_ym.is_not(None)]
     if billing_ym:
         base.append(RentConfirm.billing_ym == billing_ym)
 
-    latest = (
+    # 最新版本表:排除沖銷列——沖銷是「月結某版」的抵銷,若讓它自成 (room, ym, 沖銷)
+    # 一組去重,重開新版後過期的負值仍會入帳,沖銷重開月份會整版少算。
+    latest = _apply_scope(
         select(
             RentConfirm.room_id,
             RentConfirm.billing_ym,
             RentConfirm.charge_type,
             func.max(RentConfirm.run_version).label("mv"),
         )
-        .where(*base)
-        .group_by(RentConfirm.room_id, RentConfirm.billing_ym, RentConfirm.charge_type)
-        .subquery()
-    )
+        .where(*base, RentConfirm.charge_type != REVERSAL_RENT_CONFIRM_CHARGE_TYPE)
+        .group_by(RentConfirm.room_id, RentConfirm.billing_ym, RentConfirm.charge_type),
+        user,
+        "rent_confirm",
+    ).subquery()
+    is_reversal = RentConfirm.charge_type == REVERSAL_RENT_CONFIRM_CHARGE_TYPE
     on = (
         (RentConfirm.room_id == latest.c.room_id)
         & (RentConfirm.billing_ym == latest.c.billing_ym)
-        & (RentConfirm.charge_type == latest.c.charge_type)
         & (RentConfirm.run_version == latest.c.mv)
+        & (
+            # 一般列:對上自己 (room, ym, charge_type) 組的最新版
+            (~is_reversal & (RentConfirm.charge_type == latest.c.charge_type))
+            # 沖銷列:只在其版本==月結組現行最新版時入帳(未重開=歸零;已重開=淘汰)
+            | (is_reversal & (latest.c.charge_type == MONTHLY_RENT_CONFIRM_CHARGE_TYPE))
+        )
     )
     col = _REVENUE_MEASURES[measure]
     agg = func.sum(col) if fn == "sum" else func.round(func.avg(col), 2)
@@ -187,7 +215,7 @@ def execute_revenue(
             .select_from(RentConfirm).join(latest, on)
             .join(Room, Room.id == RentConfirm.room_id)
             .where(*base, Room.deleted_at.is_(None))
-            .group_by(Room.room_code).order_by(ordering)
+            .group_by(Room.room_code).order_by(ordering, Room.room_code)  # 同額並列時以名稱定序,結果可重現
         )
     else:  # site
         stmt = (
@@ -196,6 +224,7 @@ def execute_revenue(
             .join(Room, Room.id == RentConfirm.room_id)
             .join(Site, Site.id == Room.site_id)
             .where(*base, Room.deleted_at.is_(None), Site.deleted_at.is_(None))
-            .group_by(Site.name).order_by(ordering)
+            .group_by(Site.name).order_by(ordering, Site.name)
         )
+    stmt = _apply_scope(stmt, user, "rent_confirm")  # 列級 scope(demo admin 為 no-op)
     return [dict(row) for row in db.execute(stmt.limit(_MAX_ROWS)).mappings().all()]

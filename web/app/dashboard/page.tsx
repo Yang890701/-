@@ -3,9 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { apiJson } from "../../lib/api";
-import { WidgetGrid, type Widget } from "../_components/widget";
-
-type Dashboard = { title: string; widgets: Widget[]; note?: string };
+import { type Dashboard, WidgetGrid } from "../_components/widget";
 
 export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
