@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { apiJson } from "../../lib/api";
-import { turnsToHistory } from "../_components/chat";
+import { askStream, turnsToHistory } from "../_components/chat";
 import { WidgetGrid, type Widget } from "../_components/widget";
 
 type Source = { tool: string; label?: string; table_code?: string };
@@ -13,7 +12,7 @@ type Answer = {
   sources: Source[];
   usage?: { cost_usd: number; model: string };
 };
-type Turn = { q: string } & Partial<Answer> & { error?: string };
+type Turn = { q: string; pending?: boolean; status?: string } & Partial<Answer> & { error?: string };
 
 const EXAMPLES = [
   "各社區這個月應收總額,畫個圖",
@@ -31,12 +30,12 @@ export default function AssistantPage() {
     if (!text || loading) return;
     setQ("");
     setLoading(true);
-    setTurns((t) => [...t, { q: text }]);
+    setTurns((t) => [...t, { q: text, pending: true }]);
     try {
-      const res = await apiJson<Answer>("/api/assistant/ask", {
-        method: "POST",
-        body: JSON.stringify({ question: text, history: turnsToHistory(turns) }),
-      });
+      const res = await askStream<Answer>(
+        { question: text, history: turnsToHistory(turns) },
+        (label) => setTurns((t) => [...t.slice(0, -1), { q: text, pending: true, status: label }]),
+      );
       setTurns((t) => [...t.slice(0, -1), { q: text, ...res }]);
     } catch (err) {
       setTurns((t) => [...t.slice(0, -1), { q: text, error: err instanceof Error ? err.message : "查詢失敗" }]);
@@ -67,7 +66,9 @@ export default function AssistantPage() {
         {turns.map((t, i) => (
           <div key={i} className="card">
             <div style={{ fontWeight: 600, marginBottom: 8 }}>🙋 {t.q}</div>
-            {t.error ? (
+            {t.pending ? (
+              <div className="muted">🤖 {t.status ?? "查詢資料庫中"}…</div>
+            ) : t.error ? (
               <div className="error">⚠️ {t.error}</div>
             ) : (
               <>
@@ -87,7 +88,6 @@ export default function AssistantPage() {
             )}
           </div>
         ))}
-        {loading ? <div className="muted">查詢中…</div> : null}
       </div>
 
       <div className="toolbar" style={{ marginTop: 12, position: "sticky", bottom: 0, background: "#fff", padding: "8px 0" }}>

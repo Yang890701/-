@@ -1,21 +1,24 @@
 """資料客服助理路由。
 
-- POST /api/assistant/ask       AI 問答(可回傳 widget 陣列)
-- GET  /api/assistant/dashboard 固定儀表板(不呼叫 AI,直接跑彙總)
+- POST /api/assistant/ask        AI 問答(可回傳 widget 陣列)
+- POST /api/assistant/ask/stream 同上,SSE 串流(過程回報 status、最後 final)
+- GET  /api/assistant/dashboard  固定儀表板(不呼叫 AI,直接跑彙總)
 
 demo 一律以 admin 使用者執行,權限不擋;正式版把 _demo_user 換成
-Depends(get_current_user) 即自動繼承 RBAC 與列級 scope。
+Depends(get_current_user) 即自動繼承 RBAC 與列級 scope(含 revenue)。
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
-from app.assistant.service import ask
+from app.assistant.service import ask, ask_events
 from app.assistant.tools import execute_revenue
 from app.db.models import AppUser, RentConfirm, Room, Site
 from app.db.session import get_db
@@ -52,6 +55,32 @@ def ask_endpoint(payload: AskRequest, db: Session = Depends(get_db)) -> dict[str
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="問題不可為空")
     history = [m.model_dump() for m in payload.history or []]
     return ask(db, _demo_user(db), payload.question, context=payload.context, history=history)
+
+
+@router.post("/ask/stream")
+def ask_stream_endpoint(payload: AskRequest, db: Session = Depends(get_db)) -> StreamingResponse:
+    """SSE 串流版問答:每個事件一行 `data: {json}`。
+
+    事件:{"type":"status","label":...} 進度;{"type":"final","payload":...} 最終答案;
+    {"type":"error","message":...} 流中錯誤(流已開,HTTP 狀態碼救不了)。
+    """
+    if not payload.question.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="問題不可為空")
+    history = [m.model_dump() for m in payload.history or []]
+    user = _demo_user(db)
+
+    def event_stream():
+        try:
+            for event in ask_events(db, user, payload.question, context=payload.context, history=history):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except Exception as exc:  # noqa: BLE001
+            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/dashboard")

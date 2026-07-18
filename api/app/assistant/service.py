@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from typing import Any
 
 from anthropic import Anthropic
@@ -266,13 +267,19 @@ def _history_messages(history: list[dict[str, Any]] | None) -> list[dict[str, An
     return out
 
 
-def ask(
+def ask_events(
     db: Session,
     user: AppUser,
     question: str,
     context: str | None = None,
     history: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
+) -> Iterator[dict[str, Any]]:
+    """tool-use 迴圈的事件流版本。
+
+    過程中 yield {"type":"status","label":...}(給前端即時顯示在查什麼),
+    最後 yield {"type":"final","payload":{answer,widgets,sources,usage}}。
+    ask() 與 SSE 端點共用本實作,同步/串流行為保證一致。
+    """
     client = _get_client()
     system = build_system_prompt(db, user)
     content = (
@@ -293,6 +300,13 @@ def ask(
             "model": settings.assistant_model,
         }
 
+    def final(answer: str, widgets: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "type": "final",
+            "payload": {"answer": answer, "widgets": widgets, "sources": sources, "usage": usage_summary()},
+        }
+
+    yield {"type": "status", "label": "分析問題"}
     for _ in range(_MAX_TURNS):
         resp = client.messages.create(
             model=settings.assistant_model,
@@ -316,12 +330,8 @@ def ask(
                 # 截斷不可冒用其他訊息:answer 可能斷在半途或全空
                 text = "回答內容過長被截斷,請縮小範圍(例如指定月份或社區)再問一次。"
             _audit(db, user, question, sources)
-            return {
-                "answer": text or "這次沒有產生回答,請換個問法再試一次。",
-                "widgets": [],
-                "sources": sources,
-                "usage": usage_summary(),
-            }
+            yield final(text or "這次沒有產生回答,請換個問法再試一次。", [])
+            return
 
         messages.append({"role": "assistant", "content": resp.content})
         results: list[dict[str, Any]] = []
@@ -347,14 +357,12 @@ def ask(
                         ),
                         "is_error": True,
                     })
+                    yield {"type": "status", "label": "把查到的數據補進圖表"}
                     continue
                 _audit(db, user, question, sources)
-                return {
-                    "answer": block.input.get("answer", ""),
-                    "widgets": widgets,
-                    "sources": sources,
-                    "usage": usage_summary(),
-                }
+                yield final(block.input.get("answer", ""), widgets)
+                return
+            yield {"type": "status", "label": _source_label(block.name, block.input, labels)}
             try:
                 if block.name == "run_query":
                     data = execute_query(db, user, **block.input)
@@ -369,21 +377,38 @@ def ask(
                     "label": _source_label(block.name, block.input, labels),
                     **block.input,
                 })
-                content, is_error = json.dumps(data, ensure_ascii=False, default=str), False
+                result_content, is_error = json.dumps(data, ensure_ascii=False, default=str), False
             except Exception as exc:  # noqa: BLE001 — 回饋給模型讓它換方式
-                content, is_error = f"錯誤:{exc}", True
+                result_content, is_error = f"錯誤:{exc}", True
             results.append(
                 {
                     "type": "tool_result",
                     "tool_use_id": block.id,
-                    "content": content,
+                    "content": result_content,
                     "is_error": is_error,
                 }
             )
         messages.append({"role": "user", "content": results})
+        yield {"type": "status", "label": "整理查詢結果"}
 
     _audit(db, user, question, sources)  # 用盡回合也查過資料,稽核不可漏
-    return {"answer": "查詢過於複雜,請縮小範圍再問一次。", "widgets": [], "sources": sources, "usage": usage_summary()}
+    yield final("查詢過於複雜,請縮小範圍再問一次。", [])
+
+
+def ask(
+    db: Session,
+    user: AppUser,
+    question: str,
+    context: str | None = None,
+    history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """同步版問答:走同一條 ask_events 事件流,只取最後的 final payload。"""
+    payload: dict[str, Any] | None = None
+    for event in ask_events(db, user, question, context=context, history=history):
+        if event["type"] == "final":
+            payload = event["payload"]
+    assert payload is not None  # ask_events 保證以 final 收尾
+    return payload
 
 
 def _audit(db: Session, user: AppUser, question: str, sources: list[dict[str, Any]]) -> None:

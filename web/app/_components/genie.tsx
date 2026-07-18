@@ -5,14 +5,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { apiJson } from "../../lib/api";
-import { turnsToHistory } from "./chat";
+import { askStream, turnsToHistory } from "./chat";
 import { WidgetGrid, type Widget } from "./widget";
 
 type Source = { tool: string; label?: string; table_code?: string; by?: string };
 type Usage = { cost_usd: number; model: string; input_tokens?: number; output_tokens?: number };
 type Answer = { answer: string; widgets: Widget[]; sources: Source[]; usage?: Usage };
-type Turn = { q: string; pending?: boolean } & Partial<Answer> & { error?: string };
+type Turn = { q: string; pending?: boolean; status?: string } & Partial<Answer> & { error?: string };
 
 function sourceText(sources: Source[]): string {
   return Array.from(new Set(sources.map((s) => s.label ?? s.table_code ?? s.tool))).join("、");
@@ -65,10 +64,10 @@ export function GeniePanel() {
     setLoading(true);
     setTurns((t) => [...t, { q: text, pending: true }]);
     try {
-      const res = await apiJson<Answer>("/api/assistant/ask", {
-        method: "POST",
-        body: JSON.stringify({ question: text, context, history: turnsToHistory(turns) }),
-      });
+      const res = await askStream<Answer>(
+        { question: text, context, history: turnsToHistory(turns) },
+        (label) => setTurns((t) => [...t.slice(0, -1), { q: text, pending: true, status: label }]),
+      );
       setTurns((t) => [...t.slice(0, -1), { q: text, ...res }]);
     } catch (err) {
       setTurns((t) => [
@@ -120,7 +119,7 @@ export function GeniePanel() {
             <div key={i} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div className="genie-turn-q">{t.q}</div>
               {t.pending ? (
-                <div className="genie-thinking">查詢資料庫中…</div>
+                <div className="genie-thinking">{t.status ?? "查詢資料庫中"}…</div>
               ) : t.error ? (
                 <div className="error" style={{ margin: 0 }}>⚠️ {t.error}</div>
               ) : (
