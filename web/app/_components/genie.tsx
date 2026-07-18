@@ -40,6 +40,7 @@ function pageLabel(pathname: string): string {
 
 export function GeniePanel() {
   const [open, setOpen] = useState(false);
+  const [wide, setWide] = useState(false); // 寬版:看多欄表格/大圖時展開
   const [q, setQ] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,7 +88,10 @@ export function GeniePanel() {
         </button>
       ) : null}
 
-      <aside className={`genie-panel${open ? " genie-panel-open" : ""}`} aria-hidden={!open}>
+      <aside
+        className={`genie-panel${open ? " genie-panel-open" : ""}${wide ? " genie-panel-wide" : ""}`}
+        aria-hidden={!open}
+      >
         <header className="genie-header">
           <span className="genie-header-title">✦ Genie 資料助理</span>
           <span className="genie-context" title={`目前頁面:${context}`}>{context}</span>
@@ -96,6 +100,15 @@ export function GeniePanel() {
               ${totalCost.toFixed(3)}
             </span>
           ) : null}
+          <button
+            className="genie-close"
+            type="button"
+            onClick={() => setWide((w) => !w)}
+            aria-label={wide ? "縮回窄版" : "展開寬版"}
+            title={wide ? "縮回窄版" : "展開寬版(看多欄表格更舒服)"}
+          >
+            {wide ? "⇥" : "⇤"}
+          </button>
           <button className="genie-close" type="button" onClick={() => setOpen(false)} aria-label="收合">
             ✕
           </button>

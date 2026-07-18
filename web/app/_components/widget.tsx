@@ -311,7 +311,11 @@ function TableWidget({ widget }: { widget: Widget }) {
                 const v = row[c];
                 const isNum = typeof v === "number";
                 return (
-                  <td key={c} style={isNum ? { textAlign: "right", fontVariantNumeric: "tabular-nums" } : undefined}>
+                  <td
+                    key={c}
+                    // 數字永不換行(折行的金額不可讀);inline style 蓋過窄面板的換行規則
+                    style={isNum ? { textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" } : undefined}
+                  >
                     {v === null || v === undefined || v === "" ? "－" : isNum ? fmtFull(v as number) : String(v)}
                   </td>
                 );

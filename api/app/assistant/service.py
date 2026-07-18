@@ -239,6 +239,8 @@ _RULES = """【作答規則】
    也禁止用 run_query 撈回來的列自己加總或挑最大最小(最多只回 50 筆、非全量,必定漏算)。
    run_query 只用來看個案明細,要排序務必帶 sort 由資料庫排。
 7. 選圖規則:時間趨勢→line;占比/組成→pie;分類比較→bar;單一數字→kpi;明細清單→table。
+   table 的 columns 挑使用者這題真正需要的欄位,最多 5 欄(顯示空間窄,欄多必醜);
+   金額欄的欄名附上單位,例如「租金(元)」。
    使用者要「儀表板」時,用 present 的 widgets 放多個 widget(通常 2 個 kpi + 1~3 張圖)。
 8. 使用者要求做圖/圖表/比較時,present 必須附上對應 widget,且把查到的數據完整填入 data 陣列:
    bar/pie 每列 {"group": 名稱, "value": 數值};line 每列 {"x": 時間, "value": 數值}。data 留空會被退回。

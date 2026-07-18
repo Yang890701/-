@@ -891,13 +891,22 @@ tbody tr:hover {
   right: 0;
   top: 0;
   transform: translateX(102%);
-  transition: transform 0.25s ease;
+  transition: transform 0.25s ease, width 0.2s ease;
   width: min(520px, 96vw);
   z-index: 60;
 }
 
 .genie-panel-open {
   transform: none;
+}
+
+/* 寬版:多欄表格/大圖時手動展開,dash-grid 也恢復雙欄 */
+.genie-panel-wide {
+  width: min(920px, 96vw);
+}
+
+.genie-panel-wide .genie-turn-a .dash-grid {
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
 }
 
 .genie-header {
